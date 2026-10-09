@@ -80,11 +80,17 @@ class BasePage {
         if (!attrs.type)
             throw new Error('downLink: no type');
 
-        return this.makeLink({
-            href: attrs.href,
-            rel: 'http://opds-spec.org/acquisition',
-            type: attrs.type,
-        });
+        const linkAttrs = {
+        href: attrs.href,
+        rel: 'http://opds-spec.org/acquisition',
+        type: attrs.type,
+        };
+
+        // OPDS позволяет title для читалок вроде KOReader/FBReader
+        if (attrs.title)
+            linkAttrs.title = attrs.title;
+
+        return this.makeLink(linkAttrs);
     }
 
     imgLink(attrs) {

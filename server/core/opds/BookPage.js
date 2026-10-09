@@ -230,7 +230,26 @@ class BookPage extends BasePage {
                 e.link = [];
                 for (const [fileFormat, downHref] of Object.entries(formats))
                     e.link.push(this.downLink({href: downHref, type: `application/${fileFormat}`}));
+                //external tools (OPDS)
+                if (this.config.external) {
+                    for (const [key, ext] of Object.entries(this.config.external)) {
+                        if (!ext.active || !ext.cmd)
+                            continue;
 
+                        // в OPDS имеет смысл только download: cmd/gui/link не отдают файл
+                        if (ext.type !== 'download')
+                            continue;
+
+                        const formatExt = ext.ext || key;
+                        const mime = `application/${formatExt}`;
+
+                        e.link.push(this.downLink({
+                            href: `${bookInfo.link}/ext-${key}`,
+                            type: mime,
+                            title: ext.title || key,
+                        }));
+                    }
+                }
                 if (bookInfo.cover) {
                     let coverType = 'image/jpeg';
                     if (path.extname(bookInfo.cover) == '.png')
