@@ -156,6 +156,8 @@ Options:
     // Или скачать здесь: https://drive.google.com/file/d/1IsuCANK86W9gR5OAoZF_pVQhHoV4bLEL/view?usp=sharing
     // Распаковать архив и переместить папку reader в .inpx-web\public 
     // В конфиге в bookReadLink нужно прописать "bookReadLink": "/reader/?${DOWNLOAD_LINK}",
+    // Альтернативный вариант - https://github.com/00svd00/fb2-reader/tree/load_from_url
+    // Можно поставить аналогично варианту выше, в конфиг прописывается reader/?url=${DOWNLOAD_LINK}
     "bookReadLink": "",
 
     // включить(true)/выключить(false) журналирование
