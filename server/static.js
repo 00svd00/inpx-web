@@ -26,6 +26,23 @@ function generateZip(zipFile, dataFile, dataFileInZip) {
     });
 }
 
+//Content-Type книги по ее расширению: на диске файл назван хешем, и express
+//отдает application/octet-stream - клиент не понимает, что именно скачал.
+//Типы те же, что сервер объявляет в OPDS (см. core/opds/BookPage.js)
+function bookContentType(downFileName) {
+    const isZip = (path.extname(downFileName).toLowerCase() === '.zip');
+    const name = (isZip ? path.basename(downFileName, path.extname(downFileName)) : downFileName);
+    const ext = path.extname(name).substring(1).toLowerCase();
+
+    if (!ext)
+        return (isZip ? 'application/zip' : '');
+
+    if (ext === 'mobi')
+        return 'application/x-mobipocket-ebook';
+
+    return `application/${ext}${isZip ? '+zip' : ''}`;
+}
+
 //книга отдана клиенту — кладем ее на полку «Избранное»
 async function addToFavorites(config, desc, hash, descFile) {
     try {
@@ -210,6 +227,11 @@ module.exports = (app, config) => {
                     if (gzipped)
                         res.set('Content-Encoding', 'gzip');
                     res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(downFileName)}`);
+
+                    const contentType = bookContentType(downFileName);
+                    if (contentType)
+                        res.type(contentType);
+
                     res.sendFile(bookFile);
 
                     if (req.method === 'GET')
