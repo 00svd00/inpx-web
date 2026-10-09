@@ -142,8 +142,8 @@ module.exports = (app, config) => {
                                     RESULTFILE: `${bookFile}.${ext.ext}`,
                                     FILENAME: downFileName.replace(/\.fb2$/, `.${ext.ext}`),
                                     EXTDIR: path.dirname(config.externalToolsConfig),
-                                    LIBFOLDER: bookDesc.libFolder,
-                                    LIBFILE: bookDesc.libFile,
+                                    LIBFOLDER: desc.libFolder,
+                                    LIBFILE: desc.libFile,
                                 };
 
                                 let re = new RegExp("\\$\\{(.*?)\\}","gi");
@@ -158,7 +158,7 @@ module.exports = (app, config) => {
                                 if (ext.type === "gui") {
                                     try {
                                         let cmd = exec(cmd_line, {
-                                            cwd: `${config.publicFilesDir}${config.bookPathStatic}`,
+                                            cwd: path.dirname(bookFile),
                                             windowsHide: false,
                                         }, (error, stdout, stderr) => {
                                             if (error) {
@@ -180,7 +180,7 @@ module.exports = (app, config) => {
                                 //запуск cmd конвертера
                                 try {
                                     let cmd = execSync(cmd_line, {
-                                        cwd: `${config.publicFilesDir}${config.bookPathStatic}`,
+                                        cwd: path.dirname(bookFile),
                                         windowsHide: ext.debug ? false : true,
                                         timeout: 60000,
                                     });
@@ -201,7 +201,7 @@ module.exports = (app, config) => {
                                         log(`CMD_EXPORT: ${cmd_line}`);
                                     try {
                                         let cmd = execSync(cmd_line, {
-                                            cwd: `${config.publicFilesDir}${config.bookPathStatic}`,
+                                            cwd: path.dirname(bookFile),
                                             windowsHide: ext.debug ? false : true,
                                             timeout: 60000,
                                         });
