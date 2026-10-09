@@ -4,6 +4,8 @@ const yazl = require('yazl');
 
 const express = require('express');
 const utils = require('./core/utils');
+const WebWorker = require('./core/WebWorker');//singleton
+const Favorites = require('./core/Favorites');
 const webAppDir = require('../build/appdir');
 const {exec, execSync} = require('child_process');
 
@@ -22,6 +24,33 @@ function generateZip(zipFile, dataFile, dataFileInZip) {
         );
         zip.end();
     });
+}
+
+//книга отдана клиенту — кладем ее на полку «Избранное»
+async function addToFavorites(config, desc, hash, descFile) {
+    try {
+        const favConfig = config.favorites || {};
+        if (!favConfig.enabled || !favConfig.autoAdd || !desc)
+            return;
+
+        const webWorker = new WebWorker(config);
+
+        let bookUid = desc.bookUid;
+        if (!bookUid && hash) {
+            bookUid = await webWorker.getBookUidByHash(hash);
+            if (bookUid) {
+                desc.bookUid = bookUid;
+                await fs.writeFile(descFile, JSON.stringify(desc));
+            }
+        }
+
+        if (!bookUid)
+            return;
+        const book = await webWorker.getBookRecord(bookUid);
+        await (new Favorites(config)).add(bookUid, book || {});
+    } catch (e) {
+        log(LM_ERR, `favorites add error: ${e.message}`);
+    }
 }
 
 module.exports = (app, config) => {
@@ -48,8 +77,8 @@ module.exports = (app, config) => {
                     await utils.touchFile(bookFile);
                     await utils.touchFile(bookFileDesc);
 
-                    let bookDesc = JSON.parse(await fs.readFile(bookFileDesc, 'utf8'));
-                    let downFileName = bookDesc.downFileName;
+                    const desc = JSON.parse(await fs.readFile(bookFileDesc, 'utf8'));
+                    let downFileName = desc.downFileName;
                     let gzipped = true;
 
                     if (!req.acceptsEncodings('gzip') || fileType) {
@@ -182,6 +211,10 @@ module.exports = (app, config) => {
                         res.set('Content-Encoding', 'gzip');
                     res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(downFileName)}`);
                     res.sendFile(bookFile);
+
+                    if (req.method === 'GET')
+                        addToFavorites(config, desc, fileName, bookFileDesc);
+
                     return;
                 } else {
                     await fs.remove(bookFile);

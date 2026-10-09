@@ -34,6 +34,7 @@ const propsToSave = [
     'remoteLib',
     'server',
     'opds',
+    'favorites',
     'latestReleaseLink',
     'checkReleaseLink',
     'uiDefaults',
