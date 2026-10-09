@@ -37,13 +37,18 @@ function isJpgBuffer(buffer) {
     return buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0xD8
 }
 
+const { resolveDjxl } = require('./DjxlResolver');
 
 async function jxlConvert(imageBuff, pathTmp, namefile) {
     let ext = "png"
     let outputImg = `${pathTmp}/${namefile}.${ext}`;
 
     if (isJxlBuffer(imageBuff)) {
-        execFileSync("djxl", ["--bits_per_sample=8", "-", outputImg], {
+        const djxlPath = resolveDjxl();
+        if (!djxlPath) {
+            throw new Error('djxl not found neither next to executable nor in PATH');
+        }
+        execFileSync(djxlPath, ["--bits_per_sample=8", "-", outputImg], {
             input: imageBuff,
             maxBuffer: 50 * 1024 * 1024,
             stdio: ['pipe', 'pipe', 'pipe']

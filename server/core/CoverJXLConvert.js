@@ -137,6 +137,7 @@ async function getCoverBuff(pathCover, entryBook) {
 // -- Альтернативный вариант использовать библиотеку: https://github.com/libjxl/libjxl
 // -- Необходимо расположить исполняемый файл djxl рядом с исполняемым файлом inpx-web,
 // -- или добавить путь к djxl глобально в переменную среды.
+const { resolveDjxl } = require('./DjxlResolver');
 async function extractZipCoverAndConvert(config, hash, bookFile, entryBook, ext = ".png") {
     try {
         const pathCover = path.join(config.libDir, "covers", bookFile);
@@ -152,9 +153,15 @@ async function extractZipCoverAndConvert(config, hash, bookFile, entryBook, ext 
             return null
         }
 
+        const djxlPath = resolveDjxl();
+        if (!djxlPath) {
+            console.error(`❌ djxl not found neither next to executable nor in PATH`);
+            return null;
+        }
+
         const outputImage = path.join(config.bookDir, `${hash}${ext}`);
 
-        const output = execSync(`djxl - "${outputImage}"`, {
+        const output = execFileSync(djxlPath, ['-', outputImage], {
             input: imageBuffer,
             encoding: "utf8",
             maxBuffer: 50 * 1024 * 1024,
