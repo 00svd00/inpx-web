@@ -54,13 +54,24 @@ class DbSearcher {
         let where;
 
         //особая обработка префиксов
-        if (a[0] == '=') {
+        if (a[0] === '=') {
             a = a.substring(1);
             where = `@dirtyIndexLR('value', ${db.esc(a)}, ${db.esc(a)})`;
-        } else if (a[0] == '*') {
+        } else if (a[0] === '%') {
+            a = a.substring(1);
+            const ands = [];
+            const words = a.split(' ').filter(a => a);
+            if (!words.length)
+                words.push('');
+
+            for (const w of words)
+                ands.push(`v.indexOf(${db.esc(w)}) >= 0`);
+
+            where = `@indexIter('value', (v) => (v !== ${db.esc(emptyFieldValue)} && (${ands.join('&&')})) )`;
+        } else if (a[0] === '*') {
             a = a.substring(1);
             where = `@indexIter('value', (v) => (v !== ${db.esc(emptyFieldValue)} && v.indexOf(${db.esc(a)}) >= 0) )`;
-        } else if (a[0] == '#') {
+        } else if (a[0] === '#') {
             a = a.substring(1);
             where = `@indexIter('value', (v) => {
                 const enru = new Set(${db.esc(enruArr)});
@@ -68,7 +79,7 @@ class DbSearcher {
                     return false;
                 return v !== ${db.esc(emptyFieldValue)} && !enru.has(v[0]) && v.indexOf(${db.esc(a)}) >= 0;
             })`;
-        } else if (a[0] == '~') {//RegExp
+        } else if (a[0] === '~') {//RegExp
             a = a.substring(1);
             where = `
                 await (async() => {
@@ -595,21 +606,32 @@ class DbSearcher {
             const filterBySearch = (bookField, searchValue) => {
                 searchValue = searchValue.toLowerCase();
                 //особая обработка префиксов
-                if (searchValue == emptyFieldValue) {
+                if (searchValue === emptyFieldValue) {
                     return `(row.${bookField} === '' || row.${bookField}.indexOf(${db.esc(emptyFieldValue)}) === 0)`;
-                } else if (searchValue[0] == '=') {
+                } else if (searchValue[0] === '=') {
 
                     searchValue = searchValue.substring(1);
                     return `(row.${bookField}.toLowerCase().localeCompare(${db.esc(searchValue)}) === 0)`;
-                } else if (searchValue[0] == '*') {
+                } else if (searchValue[0] === '%') {
+                    searchValue = searchValue.substring(1);
+                    const ands = [];
+                    const words = searchValue.split(' ').filter(a => a);
+                    if (!words.length)
+                        words.push('');
+
+                    for (const w of words)
+                        ands.push(`row.${bookField}.toLowerCase().indexOf(${db.esc(w)}) >= 0`);
+
+                    return `(row.${bookField} && (${ands.join('&&')}))`;
+                } else if (searchValue[0] === '*') {
 
                     searchValue = searchValue.substring(1);
                     return `(row.${bookField} && row.${bookField}.toLowerCase().indexOf(${db.esc(searchValue)}) >= 0)`;
-                } else if (searchValue[0] == '#') {
+                } else if (searchValue[0] === '#') {
 
                     searchValue = searchValue.substring(1);
                     return `(row.${bookField} === '' || (!enru.has(row.${bookField}.toLowerCase()[0]) && row.${bookField}.toLowerCase().indexOf(${db.esc(searchValue)}) >= 0))`;
-                } else if (searchValue[0] == '~') {//RegExp
+                } else if (searchValue[0] === '~') {//RegExp
                     searchValue = searchValue.substring(1);
 
                     return `

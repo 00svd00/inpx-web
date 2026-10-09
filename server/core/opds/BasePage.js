@@ -247,21 +247,34 @@ class BasePage {
                 searchValue = searchValue.toLowerCase();
 
             //особая обработка префиксов
-            if (searchValue[0] == '=') {
+            if (searchValue[0] === '=') {
 
                 searchValue = searchValue.substring(1);
                 return bookValue.localeCompare(searchValue) == 0;
-            } else if (searchValue[0] == '*') {
+            } else if (searchValue[0] === '%') {
+
+                searchValue = searchValue.substring(1);
+
+                const words = searchValue.split(' ').filter(a => a);
+                if (!words.length)
+                    words.push('');
+
+                for (const w of words)
+                    if (bookValue !== emptyFieldValue && bookValue.indexOf(w) >= 0)
+                        return true;
+
+                return false;
+            } else if (searchValue[0] === '*') {
 
                 searchValue = searchValue.substring(1);
                 return bookValue !== emptyFieldValue && bookValue.indexOf(searchValue) >= 0;
-            } else if (searchValue[0] == '#') {
+            } else if (searchValue[0] === '#') {
 
                 searchValue = searchValue.substring(1);
                 if (!bookValue)
                     return false;
                 return bookValue !== emptyFieldValue && !enru.has(bookValue[0]) && bookValue.indexOf(searchValue) >= 0;
-            } else if (searchValue[0] == '~') {//RegExp
+            } else if (searchValue[0] === '~') {//RegExp
 
                 searchValue = searchValue.substring(1);
                 const re = new RegExp(searchValue, 'i');
