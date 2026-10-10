@@ -1,42 +1,11 @@
 import 'quasar/dist/quasar.css';
 
-import Quasar from 'quasar/src/vue-plugin.js';
+import { Quasar } from 'quasar';
 //config
 const config = {};
 
 //components
-//import {QLayout} from 'quasar/src/components/layout';
-//import {QPageContainer, QPage} from 'quasar/src/components/page';
-//import {QDrawer} from 'quasar/src/components/drawer';
-
-//import {QCircularProgress} from 'quasar/src/components/circular-progress';
-import {QLinearProgress} from 'quasar/src/components/linear-progress';
-import {QInput} from 'quasar/src/components/input';
-import {QBtn} from 'quasar/src/components/btn';
-//import {QBtnGroup} from 'quasar/src/components/btn-group';
-import {QBtnToggle} from 'quasar/src/components/btn-toggle';
-import {QIcon} from 'quasar/src/components/icon';
-//import {QSlider} from 'quasar/src/components/slider';
-import {QTabs, QTab} from 'quasar/src/components/tabs';
-//import {QTabPanels, QTabPanel} from 'quasar/src/components/tab-panels';
-//import {QSeparator} from 'quasar/src/components/separator';
-//import {QList} from 'quasar/src/components/item';
-import {QItem, QItemSection, QItemLabel} from 'quasar/src/components/item';
-import {QTooltip} from 'quasar/src/components/tooltip';
-//import {QSpinner} from 'quasar/src/components/spinner';
-//import {QTable, QTh, QTr, QTd} from 'quasar/src/components/table';
-import {QCheckbox} from 'quasar/src/components/checkbox';
-import {QSelect} from 'quasar/src/components/select';
-//import {QColor} from 'quasar/src/components/color';
-import {QPopupProxy} from 'quasar/src/components/popup-proxy';
-import {QDate} from 'quasar/src/components/date';
-import {QDialog} from 'quasar/src/components/dialog';
-//import {QChip} from 'quasar/src/components/chip';
-import {QTree} from 'quasar/src/components/tree';
-//import {QVirtualScroll} from 'quasar/src/components/virtual-scroll';
-//import {QExpansionItem} from 'quasar/src/components/expansion-item';
-import {QOptionGroup} from 'quasar/src/components/option-group';
-import {QKnob} from 'quasar/src/components/knob';
+import { QLinearProgress, QInput, QBtn, QBtnToggle, QIcon, QTabs, QTab, QItem, QItemSection, QItemLabel, QTooltip, QCheckbox, QSelect, QPopupProxy, QDate, QDialog, QTree, QOptionGroup, QKnob } from 'quasar';
 
 
 const components = {

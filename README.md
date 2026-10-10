@@ -488,7 +488,7 @@ sudo service nginx reload
 
 ### Сборка релизов
 Сборка только в среде Linux.
-Необходима версия node.js не ниже 16.
+Необходима версия node.js не ниже 20.9.
 
 Для сборки linux-arm64 необходимо предварительно установить [QEMU](https://wiki.debian.org/QemuUserEmulation).
 
