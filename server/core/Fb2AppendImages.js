@@ -142,7 +142,7 @@ async function getImagesBase64(config, libFolder, fileName) {
         }
 
         if (fs.pathExistsSync(pathTmp))
-            fs.rmdirSync(pathTmp, { recursive: true });
+            fs.rmSync(pathTmp, { recursive: true });
 
 
     } catch (e) {

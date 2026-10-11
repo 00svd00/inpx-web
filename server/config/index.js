@@ -55,36 +55,42 @@ class ConfigManager {
     }
 
     async init(defaultDataDir, configFile) {
-        if (this.inited)
-            throw new Error('already inited');
+    if (this.inited)
+        throw new Error('already inited');
 
-        this.branch = 'production';
-        try {
-            await fs.access(branchFilename);
-            this.branch = (await fs.readFile(branchFilename, 'utf8')).trim();
-        } catch (err) {
-            //
-        }
+    this.branch = 'production';
+    try {
+        await fs.access(branchFilename);
+        this.branch = (await fs.readFile(branchFilename, 'utf8')).trim();
+    } catch (err) {
+        //
+    }
 
-        process.env.NODE_ENV = this.branch;
+    process.env.NODE_ENV = this.branch;
 
-        this.branchConfigFile = __dirname + `/${this.branch}.js`;
-        const config = require(this.branchConfigFile);
+    // Статический require — esbuild включит оба файла в бандл,
+    // pkg не будет искать их отдельно
+    let config;
+    if (this.branch === 'development') {
+        config = require('./development.js');
+    } else {
+        config = require('./production.js');
+    }
 
-        if (!defaultDataDir) {
-            defaultDataDir = `${config.execDir}/.${config.name}`;
-        }
+    if (!defaultDataDir) {
+        defaultDataDir = `${config.execDir}/.${config.name}`;
+    }
 
-        if (configFile) {
-            config.configFile = path.resolve(configFile);
-        } else {
-            await fs.ensureDir(defaultDataDir);
-            config.configFile = `${defaultDataDir}/config.json`;
-        }
+    if (configFile) {
+        config.configFile = path.resolve(configFile);
+    } else {
+        await fs.ensureDir(defaultDataDir);
+        config.configFile = `${defaultDataDir}/config.json`;
+    }
 
-        this._config = config;
+    this._config = config;
 
-        this.inited = true;
+    this.inited = true;
     }
 
     get config() {

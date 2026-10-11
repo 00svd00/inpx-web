@@ -5,15 +5,16 @@
   "license": "CC0-1.0",
   "repository": "bookpauk/inpx-web",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "nodemon --inspect --ignore server/.inpx-web --ignore client --exec node --expose-gc server --lib-dir=server/.inpx-web/lib",
     "build:client": "webpack --config build/webpack.prod.config.js",
-    "build:linux": "npm run build:client && node build/prepkg.js linux && pkg -t node16-linux-x64 -C GZip --options max-old-space-size=4096,expose-gc -o dist/linux/inpx-web .",
-    "build:linux-arm64": "npm run build:client && node build/prepkg.js linux-arm64 && pkg -t node16-linuxstatic-arm64 -C GZip --options max-old-space-size=4096,expose-gc -o dist/linux-arm64/inpx-web .",
-    "build:win": "npm run build:client && node build/prepkg.js win && pkg -t node16-win-x64 -C GZip --options max-old-space-size=4096,expose-gc -o dist/win/inpx-web .",
-    "build:macos": "npm run build:client && node build/prepkg.js macos && pkg -t node16-macos-x64 -C GZip --options max-old-space-size=4096,expose-gc -o dist/macos/inpx-web .",
+    "build:bundle": "node -e \"require('fs').rmSync('dist/bundle', {recursive: true, force: true})\" && esbuild server/index.js --bundle --platform=node --format=cjs --external:jembadb --outfile=dist/bundle/index.js",
+    "build:linux": "npm run build:client && npm run build:bundle && node build/prepkg.js linux && node build/pkg-with-conditional.js node22-linux-x64 dist/linux/inpx-web dist/bundle/index.js",
+    "build:linux-arm64": "npm run build:client && npm run build:bundle && node build/prepkg.js linux-arm64 && node build/pkg-with-conditional.js node22-linux-arm64 dist/linux-arm64/inpx-web dist/bundle/index.js",
+    "build:win": "npm run build:client && npm run build:bundle && node build/prepkg.js win && node build/pkg-with-conditional.js node22-win-x64 dist/win/inpx-web dist/bundle/index.js",
+    "build:macos": "npm run build:client && npm run build:bundle && node build/prepkg.js macos && node build/pkg-with-conditional.js node22-macos-x64 dist/macos/inpx-web dist/bundle/index.js",
     "build:client-dev": "webpack --config build/webpack.dev.config.js",
     "build:all": "npm run build:linux && npm run build:win && npm run build:macos && npm run build:linux-arm64",
     "release": "npm run build:all && node build/release.js",
@@ -25,8 +26,9 @@
   },
   "bin": "server/index.js",
   "pkg": {
-    "scripts": "server/config/*.js",
-    "assets": "dist/public.json"
+    "assets": [
+      "dist/public.json"
+    ]
   },
   "devDependencies": {
     "@babel/core": "^7.24.3",
@@ -35,15 +37,16 @@
     "@babel/plugin-proposal-decorators": "^7.24.1",
     "@babel/preset-env": "^7.24.3",
     "@vue/compiler-sfc": "^3.2.22",
+    "@yao-pkg/pkg": "^6.23.0",
     "babel-loader": "^9.1.3",
     "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^6.10.0",
     "css-minimizer-webpack-plugin": "^8.0.0",
+    "esbuild": "^0.25.0",
     "eslint": "^9.27.0",
     "eslint-plugin-vue": "^10.11.1",
     "html-webpack-plugin": "^5.6.0",
     "mini-css-extract-plugin": "^2.8.1",
-    "pkg": "^5.8.1",
     "showdown": "^2.1.0",
     "terser-webpack-plugin": "^5.3.10",
     "vue-eslint-parser": "^10.3.0",
@@ -71,7 +74,7 @@
     "minimist": "^1.2.8",
     "node-7z": "^3.0.0",
     "node-stream-zip": "^1.15.0",
-    "quasar": "^2.15.1",
+    "quasar": "^2.32.2",
     "safe-buffer": "^5.2.1",
     "vue": "^3.2.37",
     "vue-router": "^4.3.0",

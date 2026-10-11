@@ -62,6 +62,7 @@ OPDS-сервер доступен по адресу [http://127.0.0.1:12380/opd
 OPDS-сервер доступен по адресу [http://127.0.0.1:12380/opds](http://127.0.0.1:12380/opds)
 
 Если у вас альтернативный формат библиотеки в формате 7z, то для загрузки обложек необходимо скачать [libjxl](https://github.com/libjxl/libjxl/releases/tag/v0.11.2) конвертер для вашей ОС, затем расположить исполняемый файл `djxl` рядом с исполняемым файлом inpx-web или добавить путь к djxl глобально в переменную среды вашей ОС.
+Для Windows нужно установит 7zip и прописать C:\Program Files\7-Zip в Path в переменных среды
 
 <a id="cli" />
 
@@ -388,7 +389,21 @@ Options:
   }
 }
 ```
-
+Пример для Windows:
+```json
+{
+  "epub": {
+    "active": true,
+    "cmd": "powershell -NoProfile -Command \"Copy-Item '${HASHFILE}.raw' '${HASHFILE}.fb2'; & '${EXTDIR}/../fbc.exe' convert --to epub2 --nodirs --overwrite '${HASHFILE}.fb2' --output-file '${HASHFILE}.epub'; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "type": "download"
+  },
+  "pdf": {
+    "active": true,
+    "cmd": "powershell -NoProfile -Command \"Copy-Item '${HASHFILE}.raw' '${HASHFILE}.fb2'; & '${EXTDIR}/../fbc.exe' convert --to pdf --nodirs --overwrite '${HASHFILE}.fb2' --output-file '${HASHFILE}.pdf'; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "type": "download"
+  }
+}
+```
 Возможные действия:
 
 - `"type": "download"` // будет запущена команда `cmd` и результат будет загружен в браузере.
@@ -488,7 +503,7 @@ sudo service nginx reload
 
 ### Сборка релизов
 Сборка только в среде Linux.
-Необходима версия node.js не ниже 20.9.
+Необходима версия node.js не ниже 22.12.
 
 Для сборки linux-arm64 необходимо предварительно установить [QEMU](https://wiki.debian.org/QemuUserEmulation).
 
