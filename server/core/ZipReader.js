@@ -1,4 +1,5 @@
 const fs = require('fs-extra');
+const path = require('path');
 const {execFile, execFileSync} = require('child_process');
 const StreamUnzip = require('node-stream-zip');
 
@@ -9,19 +10,53 @@ const SEVEN_ZIP_CANDIDATES = ['7z', '7zz', '7za'];
 const MAX_BUF = 512*1024*1024;
 
 let sevenZipCmd;//undefined - еще не искали, '' - не нашли
+let sevenZipConfiguredPath = '';//путь из config.json
+
+//вызывается один раз при инициализации приложения
+function setSevenZipPath(p) {
+    if (p)
+        sevenZipConfiguredPath = p;
+}
+
+function checkExecutable(cmd) {
+    try {
+        execFileSync(cmd, ['i'], {stdio: 'ignore'});
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
 
 function findSevenZip() {
     if (sevenZipCmd !== undefined)
         return sevenZipCmd;
 
+    // 1. Путь из конфига
+    if (sevenZipConfiguredPath) {
+        if (checkExecutable(sevenZipConfiguredPath)) {
+            sevenZipCmd = sevenZipConfiguredPath;
+            return sevenZipCmd;
+        }
+        //если путь задан, но не работает — не молчим, а сообщим
+        console.warn(`WARN: sevenZipPath="${sevenZipConfiguredPath}" is not executable, falling back to PATH`);
+    }
+
+    // 2. Рядом с исполняемым файлом приложения
+    const exeDir = path.dirname(process.execPath);
+    for (const name of SEVEN_ZIP_CANDIDATES) {
+        const nearExe = path.join(exeDir, process.platform === 'win32' ? `${name}.exe` : name);
+        if (fs.existsSync(nearExe) && checkExecutable(nearExe)) {
+            sevenZipCmd = nearExe;
+            return sevenZipCmd;
+        }
+    }
+
+    // 3. Поиск в PATH
     sevenZipCmd = '';
     for (const cmd of SEVEN_ZIP_CANDIDATES) {
-        try {
-            execFileSync(cmd, ['i'], {stdio: 'ignore'});
+        if (checkExecutable(cmd)) {
             sevenZipCmd = cmd;
             break;
-        } catch (e) {
-            //нет такой команды, пробуем следующую
         }
     }
 
@@ -139,3 +174,5 @@ class ZipReader {
 }
 
 module.exports = ZipReader;
+module.exports.setSevenZipPath = setSevenZipPath;
+module.exports.getSevenZipPath = () => findSevenZip();

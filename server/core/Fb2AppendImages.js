@@ -155,57 +155,65 @@ async function getImagesBase64(config, libFolder, fileName) {
 }
 
 async function extractFrom7z(config, arhivePath, libFolder, fileName, outFile) {
+    // Определяем путь к 7z: сначала из конфига, потом через findSevenZip()
+    const sevenZipPath = config.sevenZipPath || ZipReader.getSevenZipPath();
+    if (!sevenZipPath) {
+        throw new Error('7-Zip not found. Install it or specify "sevenZipPath" in config.json');
+    }
     return new Promise((resolve, reject) => {
         const stream = seven7z.extractFull(arhivePath, config.tempDir, {
+            $bin: sevenZipPath,        // ← путь к 7z.exe
             $cherryPick: fileName,
             recursive: true,
         });
 
         stream.on("end", async (e) => {
-            const extractedPath = `${config.tempDir}/${fileName}`;
+            try {
+                const extractedPath = `${config.tempDir}/${fileName}`;
 
-            const rawBuffer = await fs.readFile(extractedPath);
-            
-            // Определяем кодировку
-            const preview = rawBuffer.slice(0, 500).toString("ascii");
-            const match = preview.match(/encoding=["']([^"']+)["']/i);
-            const encoding = match ? match[1].toLowerCase() : "windows-1251"; 
+                const rawBuffer = await fs.readFile(extractedPath);
 
-            let fb2Text = iconv.decode(rawBuffer, encoding);
-            
-            // Чистый Base64 (без заголовка "data:image/png;base64,")
-            const entries = await getImagesBase64(config, libFolder, fileName);
+                // Определяем кодировку
+                const preview = rawBuffer.slice(0, 500).toString("ascii");
+                const match = preview.match(/encoding=["']([^"']+)["']/i);
+                const encoding = match ? match[1].toLowerCase() : "windows-1251";
 
-            // Генерируем блоки <binary> для вставки в конец файла
-            let binaryBlocks = "";
-            for (const imageName in entries) {
-                const pureBase64 = entries[imageName].replace(/^data:image\/\w+;base64,/, "");
-                
-                // Определяем тип контента (png или jpeg)
-                const contentType = imageName.toLowerCase().endsWith(".jpg") || imageName.toLowerCase().endsWith(".jpeg") 
-                    ? "image/jpeg" 
-                    : "image/png";
+                let fb2Text = iconv.decode(rawBuffer, encoding);
 
-                binaryBlocks += `\n<binary id="${imageName}" content-type="${contentType}">${pureBase64}</binary>`;
+                // Чистый Base64 (без заголовка "data:image/png;base64,")
+                const entries = await getImagesBase64(config, libFolder, fileName);
+
+                // Генерируем блоки <binary> для вставки в конец файла
+                let binaryBlocks = "";
+                for (const imageName in entries) {
+                    const pureBase64 = entries[imageName].replace(/^data:image\/\w+;base64,/, "");
+
+                    // Определяем тип контента (png или jpeg)
+                    const contentType = imageName.toLowerCase().endsWith(".jpg") || imageName.toLowerCase().endsWith(".jpeg")
+                        ? "image/jpeg"
+                        : "image/png";
+
+                    binaryBlocks += `\n<binary id="${imageName}" content-type="${contentType}">${pureBase64}</binary>`;
+                }
+
+                // Вставляем блоки <binary>
+                if (fb2Text.includes("</FictionBook>")) {
+                    fb2Text = fb2Text.replace("</FictionBook>", `${binaryBlocks}\n</FictionBook>`);
+                } else {
+                    fb2Text += binaryBlocks;
+                }
+
+                // Сохраняем в UTF-8
+                fb2Text = fb2Text.replace(/encoding=["']([^"']+)["']/i, 'encoding="utf-8"');
+
+                await fs.writeFile(extractedPath, fb2Text, "utf-8");
+
+                await fs.move(extractedPath, outFile, { overwrite: true });
+                resolve();
+            } catch (err) {
+                reject(err);
             }
-
-            // Вставляем блоки <binary>
-            if (fb2Text.includes("</FictionBook>")) {
-                fb2Text = fb2Text.replace("</FictionBook>", `${binaryBlocks}\n</FictionBook>`);
-            } else {
-                fb2Text += binaryBlocks;
-            }
-
-            // Сохраняем в UTF-8
-            fb2Text = fb2Text.replace(/encoding=["']([^"']+)["']/i, 'encoding="utf-8"');
-
-            await fs.writeFile(extractedPath, fb2Text, "utf-8");
-
-            fs.move(extractedPath, outFile, { overwrite: true })
-                .then(() => resolve())
-                .catch(reject);
         });
-
 
         stream.on("error", reject);
     });

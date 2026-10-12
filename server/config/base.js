@@ -18,6 +18,7 @@ module.exports = {
     inpxFilterFile: '',
     externalToolsConfig: '',
     external: '',
+    sevenZipPath: '',
 
     allowConfigRewrite: false,
     allowUnsafeFilter: false,

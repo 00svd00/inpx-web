@@ -12,6 +12,7 @@ const propsToSave = [
     'inpx',
     'inpxFilterFile',
     'externalToolsConfig',
+    'sevenZipPath',
     'allowConfigRewrite',
     'allowUnsafeFilter',
     'accessPassword',

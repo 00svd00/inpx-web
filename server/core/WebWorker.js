@@ -20,7 +20,6 @@ const genreTree = require('./genres');
 const Fb2Helper = require('./fb2/Fb2Helper');
 
 // 7z read and covers
-const seven7z = require("node-7z");
 const extractZipCoverAndConvert = require("./CoverJXLConvert");
 const Fb2AppendImages = require("./Fb2AppendImages");
 
