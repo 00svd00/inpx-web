@@ -74,9 +74,15 @@ async function init() {
     await appLogger.init(config);
     log = appLogger.log;
 
+    //sevenZip
     const { setSevenZipPath, getSevenZipPath } = require('./core/ZipReader');
     setSevenZipPath(config.sevenZipPath);
     log(`sevenZipPath: ${getSevenZipPath() || 'not found'}`);
+
+    //djxl
+    const { setDjxlPath, resolveDjxl } = require('./core/DjxlResolver');
+    setDjxlPath(config.djxlPath);
+    log(`djxlPath: ${resolveDjxl() || 'not found'}`);
 
     //cli
     if (argv.help) {

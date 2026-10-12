@@ -19,6 +19,7 @@ module.exports = {
     externalToolsConfig: '',
     external: '',
     sevenZipPath: '',
+    djxlPath: '',
 
     allowConfigRewrite: false,
     allowUnsafeFilter: false,
