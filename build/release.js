@@ -27,6 +27,7 @@ async function main() {
             await makeRelease('win');
             await makeRelease('linux');
             await makeRelease('linux-arm64');
+            await makeRelease('linux-armv7');
             await makeRelease('macos');
         }
     } catch(e) {

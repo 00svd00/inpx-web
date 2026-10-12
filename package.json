@@ -13,6 +13,7 @@
     "build:bundle": "node -e \"require('fs').rmSync('dist/bundle', {recursive: true, force: true})\" && esbuild server/index.js --bundle --platform=node --format=cjs --external:jembadb --outfile=dist/bundle/index.js",
     "build:linux": "npm run build:client && npm run build:bundle && node build/prepkg.js linux && node build/pkg-with-conditional.js node22-linux-x64 dist/linux/inpx-web dist/bundle/index.js",
     "build:linux-arm64": "npm run build:client && npm run build:bundle && node build/prepkg.js linux-arm64 && node build/pkg-with-conditional.js node22-linux-arm64 dist/linux-arm64/inpx-web dist/bundle/index.js",
+    "build:linux-armv7": "npm run build:client && npm run build:bundle && node build/prepkg.js linux-armv7 && node build/pkg-with-conditional.js node22-linux-armv7 dist/linux-armv7/inpx-web dist/bundle/index.js",
     "build:win": "npm run build:client && npm run build:bundle && node build/prepkg.js win && node build/pkg-with-conditional.js node22-win-x64 dist/win/inpx-web dist/bundle/index.js",
     "build:macos": "npm run build:client && npm run build:bundle && node build/prepkg.js macos && node build/pkg-with-conditional.js node22-macos-x64 dist/macos/inpx-web dist/bundle/index.js",
     "build:client-dev": "webpack --config build/webpack.dev.config.js",
@@ -22,6 +23,7 @@
     "release:win": "npm run build:win && node build/release.js win",
     "release:macos": "npm run build:macos && node build/release.js macos",
     "release:arm64": "npm run build:linux-arm64 && node build/release.js arm64",
+    "release:armv7": "npm run build:linux-armv7 && node build/release.js armv7",
     "postinstall": "npm run build:client-dev"
   },
   "bin": "server/index.js",

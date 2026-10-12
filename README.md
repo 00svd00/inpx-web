@@ -508,18 +508,20 @@ sudo service nginx reload
 ### Сборка релизов
 Сборка только в среде Linux.
 Необходима версия node.js не ниже 22.12.
-
-Для сборки linux-arm64 необходимо предварительно установить [QEMU](https://wiki.debian.org/QemuUserEmulation).
-
 ```sh
 git clone https://github.com/bookpauk/inpx-web
 cd inpx-web
 npm i
 npm run release
 ```
-
 Результат сборки будет доступен в каталоге `dist/release`
 
+Для сборки linux-armv7 необходимо предварительно установить [QEMU](https://wiki.debian.org/QemuUserEmulation).
+Либо попробовать скачать [последний существующий релиз node22 под armv7](https://github.com/yao-pkg/pkg-binaries/releases)
+и положить в package cache (скорее всего по пути ~/.pkg-cache/v3.6/), переименовав в built-v22.23.2-linux-armv7 (либо в ту версию, которая будет последней на момент сборки и которую будет пробовать скачать pkg). После чего пробовать
+```sh
+npm run release:armv7
+```
 <a id="native_run" />
 
 ### Запуск без сборки релиза

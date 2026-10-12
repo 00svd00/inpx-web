@@ -12,23 +12,26 @@ if (!target || !output || !entry) {
 console.log('argv:', process.argv);
 console.log('target:', target, '| output:', output, '| entry:', entry);
 
-// target имеет вид node22-linux-x64, node22-win-x64 и т.д.
+// target имеет вид node22-linux-x64, node22-linux-armv7, node22-win-x64 и т.д.
 // Разбираем: первая часть — nodeXX, вторая — OS, третья — ARCH
 const dashIndex = target.indexOf('-');
-const nodeVersion = target.substring(0, dashIndex);        // node22
-const rest = target.substring(dashIndex + 1);              // linux-x64
+const rest = target.substring(dashIndex + 1);
 const parts = rest.split('-');
-const targetOs = parts[0];                                  // linux, win, macos, linuxstatic
-const targetArch = parts.slice(1).join('-');                // x64, arm64
+const targetOs = parts[0];                    // linux, win, macos
+const targetArch = parts.slice(1).join('-');  // x64, arm64, armv7
 
-// Нормализуем OS
-const osMap = { win: 'win32', macos: 'darwin', linux: 'linux', linuxstatic: 'linux' };
-const normalizedTargetOs = osMap[targetOs] || targetOs;
+// Нормализуем OS хоста под словарь pkg
+const osMap = { win32: 'win', darwin: 'macos', linux: 'linux' };
+const hostOs = osMap[process.platform] || process.platform;
 
-const hostOs = process.platform;     // win32, linux, darwin
-const hostArch = process.arch;       // x64, arm64
+// Нормализуем архитектуру хоста под словарь pkg
+// process.arch для ARM возвращает 'arm', но pkg использует 'armv7'
+let hostArch = process.arch;
+if (hostArch === 'arm') {
+    hostArch = 'armv7';
+}
 
-const isNative = (hostOs === normalizedTargetOs && hostArch === targetArch);
+const isNative = (hostOs === targetOs && hostArch === targetArch);
 
 const flags = ['-t', target, '-C', 'GZip',
     '--options', 'max-old-space-size=4096,expose-gc',
