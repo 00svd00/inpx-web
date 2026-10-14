@@ -1,4 +1,6 @@
 const fs = require('fs-extra');
+const path = require('path');
+const ReviewsIndexer = require('./ReviewsIndexer');
 
 const InpxParser = require('./InpxParser');
 const InpxHashCreator = require('./InpxHashCreator');
@@ -338,6 +340,8 @@ class DbCreator {
             seriesCount: seriesArr.length,
             genreCount: genreArr.length,
             langCount: langArr.length,
+            reviewsEnabled: false,
+            reviewsCount: 0,
         };
         //console.log(stats);
 
@@ -450,6 +454,25 @@ class DbCreator {
 
         callback({job: 'stats count', jobMessage: 'Подсчет статистики', jobStep: 9, progress: 0});
         await this.countStats(db, callback, stats);
+
+        // -- рецензии ------------------------------------------
+        let reviewsEnabled = false;
+        if (config.reviewsEnabled && config.libDir) {
+            const reviewsDir = path.join(config.libDir, 'etc', 'reviews');
+            const additionalZip = path.join(reviewsDir, 'additional.zip');
+            reviewsEnabled = await fs.pathExists(reviewsDir) && await fs.pathExists(additionalZip);
+        }
+
+        if (reviewsEnabled) {
+            callback({job: 'reviews index', jobMessage: 'Индексация рецензий', jobStep: 10, progress: 0});
+
+            const indexer = new ReviewsIndexer(config);
+            stats.reviewsCount = await indexer.build(db, (p) => callback(p));
+        } else {
+            stats.reviewsCount = 0;
+        }
+
+        stats.reviewsEnabled = reviewsEnabled;
 
         //чистка памяти, ибо жрет как не в себя
         await db.close({table: 'book'});

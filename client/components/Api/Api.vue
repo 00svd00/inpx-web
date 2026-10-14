@@ -41,16 +41,16 @@ import packageJson from '../../../package.json';
 const rotor = '|/-\\';
 const stepBound = [
     0,
-    0,// jobStep = 1
-    40,// jobStep = 2
-    50,// jobStep = 3
-    54,// jobStep = 4
-    58,// jobStep = 5
-    69,// jobStep = 6
-    69,// jobStep = 7
-    70,// jobStep = 8
-    95,// jobStep = 9
-    100,// jobStep = 10
+    0,   // jobStep = 1  (load inpx)
+    30,  // jobStep = 2  (sort)
+    35,  // jobStep = 3  (author save)
+    37,  // jobStep = 4  (series save)
+    54,  // jobStep = 5  (title save)
+    55,  // jobStep = 6  (genre save)
+    56,  // jobStep = 7  (others save)
+    66,  // jobStep = 8  (optimization)
+    76,  // jobStep = 9  (stats count)
+    96,  // jobStep = 10 (reviews index)
 ];
 
 const componentOptions = {
@@ -178,7 +178,8 @@ class Api {
 
                     if (jStep && stepBound[jStep] !== undefined) {
                         const sp = server.progress || 0;
-                        const delta = stepBound[jStep + 1] - stepBound[jStep];
+                        const next = stepBound[jStep + 1];
+                        const delta = (next !== undefined ? next : 100) - stepBound[jStep];
                         this.progress = (stepBound[jStep] + sp*delta)/100;
                     }
                 } else {
@@ -263,6 +264,10 @@ class Api {
         return await this.request({action: 'get-book-info', bookUid}, 120);
     }
 
+    async getBookReviews(bookUid) {
+        return await this.request({action: 'get-book-reviews', bookUid}, 60);
+    }
+    
     async getConfig() {
         return await this.request({action: 'get-config'});
     }

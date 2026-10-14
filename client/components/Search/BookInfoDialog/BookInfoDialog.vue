@@ -40,25 +40,54 @@
                         >
                             <q-tab v-if="fb2.length" name="fb2" label="Fb2 инфо" />
                             <q-tab name="inpx" label="Inpx инфо" />
+                            <q-tab name="reviews" :label="reviewsTabLabel" :disable="!reviewsAvailable" />
                         </q-tabs>
                     </div>
 
                     <div class="overflow-auto full-width" style="height: 262px">
-                        <div v-for="item in info" :key="item.name">
-                            <div class="row q-ml-sm q-mt-sm items-center">
-                                <div class="text-blue" style="font-size: 90%">
-                                    {{ item.label }}
+                        <!-- fb2 / inpx -->
+                        <template v-if="selectedTab !== 'reviews'">
+                            <div v-for="item in info" :key="item.name">
+                                <div class="row q-ml-sm q-mt-sm items-center">
+                                    <div class="text-blue" style="font-size: 90%">
+                                        {{ item.label }}
+                                    </div>
+                                    <div class="col q-mx-xs" style="height: 0px; border-top: 1px solid #ccc"></div>
                                 </div>
-                                <div class="col q-mx-xs" style="height: 0px; border-top: 1px solid #ccc"></div>
-                            </div>
 
-                            <div v-for="subItem in item.value" :key="subItem.name" class="row q-ml-md">
-                                <div style="width: 100px">
-                                    {{ subItem.label }}
+                                <div v-for="subItem in item.value" :key="subItem.name" class="row q-ml-md">
+                                    <div style="width: 100px">
+                                        {{ subItem.label }}
+                                    </div>
+                                    <div class="q-ml-sm" v-html="subItem.value" />
                                 </div>
-                                <div class="q-ml-sm" v-html="subItem.value" />
                             </div>
-                        </div>
+                        </template>
+
+                        <!-- reviews -->
+                        <template v-else>
+                            <div v-if="reviewsLoading" class="q-pa-md text-center text-grey">
+                                Загрузка рецензий...
+                            </div>
+                            <div v-else-if="reviewsError" class="q-pa-md text-red">
+                                {{ reviewsError }}
+                            </div>
+                            <div v-else>
+                                <div class="q-pa-sm text-grey-7" style="font-size: 90%">
+                                    Рецензий: <b>{{ reviews.foundCount }}</b>,
+                                    оценок: <b>{{ reviews.declaredCount }}</b><span v-if="avgRating">, средняя: <b>{{ avgRating }}</b></span>
+                                </div>
+                                <div v-for="(review, i) in reviews.reviews" :key="i" class="q-pa-sm" style="border-top: 1px solid #eee">
+                                    <div class="text-grey-7" style="font-size: 85%">
+                                        {{ review.name || 'Аноним' }} — {{ review.time }}
+                                    </div>
+                                    <div v-html="review.text" style="text-align: justify" />
+                                </div>
+                                <div v-if="!reviews.reviews.length" class="q-pa-md text-center text-grey">
+                                    Рецензии не найдены
+                                </div>
+                            </div>
+                        </template>
 
                         <div class="q-mt-xs"></div>
                     </div>
@@ -111,6 +140,11 @@ const componentOptions = {
         dialogVisible(newValue) {
             this.$emit('update:modelValue', newValue);
         },
+        selectedTab(newValue, oldValue) {
+            if (newValue === 'reviews' && !this.reviewsLoaded && !this.reviewsLoading) {
+                this.loadReviews();
+            }
+        },
     }
 };
 class BookInfoDialog {
@@ -131,8 +165,22 @@ class BookInfoDialog {
     fb2 = [];
     book = {};
 
+    //reviews
+    reviewsLoading = false;
+    reviewsError = '';
+    reviews = {declaredCount: 0, sum: 0, foundCount: 0, reviews: []};
+    reviewsLoaded = false;
+
     created() {
         this.commit = this.$store.commit;
+    }
+
+    get config() {
+        return this.$store.state.config;
+    }
+
+    get api() {
+        return this.$root.api;
     }
 
     mounted() {
@@ -145,10 +193,15 @@ class BookInfoDialog {
         this.fb2 = [];
         this.book = {};
 
+        //reviews
+        this.reviewsLoading = false;
+        this.reviewsError = '';
+        this.reviews = {declaredCount: 0, sum: 0, foundCount: 0, reviews: []};
+        this.reviewsLoaded = false;
+
         this.parseBookInfo();
 
-        if (!this.fb2.length)
-            this.selectedTab = 'inpx';
+        this.selectedTab = this.fb2.length ? 'fb2' : 'inpx';
     }
 
     get bookAuthor() {
@@ -158,6 +211,22 @@ class BookInfoDialog {
         }
 
         return '';
+    }
+
+    get reviewsAvailable() {
+        return this.config.reviewsEnabled && this.book._uid;
+    }
+
+    get avgRating() {
+        if (!this.reviews.declaredCount || !this.reviews.sum)
+            return '';
+        return (this.reviews.sum / this.reviews.declaredCount).toFixed(1);
+    }
+
+    get reviewsTabLabel() {
+        if (this.reviewsLoaded && this.reviews.foundCount)
+            return `Рецензии (${this.reviews.foundCount})`;
+        return 'Рецензии';
     }
 
     formatSize(size) {
@@ -321,6 +390,24 @@ class BookInfoDialog {
             return;
 
         this.posterDialogVisible = true;
+    }
+
+    async loadReviews() {
+        if (this.reviewsLoading || this.reviewsLoaded)
+            return;
+
+        this.reviewsLoading = true;
+        this.reviewsError = '';
+
+        try {
+            const result = await this.api.getBookReviews(this.book._uid);
+            this.reviews = result;
+            this.reviewsLoaded = true;
+        } catch (e) {
+            this.reviewsError = e.message;
+        } finally {
+            this.reviewsLoading = false;
+        }
     }
 
     okClick() {

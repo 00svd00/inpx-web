@@ -6,6 +6,7 @@ const SeriesPage = require('./SeriesPage');
 const TitlePage = require('./TitlePage');
 const GenrePage = require('./GenrePage');
 const BookPage = require('./BookPage');
+const BookReviewsPage = require('./BookReviewsPage');
 const FavoritesPage = require('./FavoritesPage');
 
 const OpensearchPage = require('./OpensearchPage');
@@ -27,6 +28,7 @@ module.exports = function(app, config) {
     const title = new TitlePage(config);
     const genre = new GenrePage(config);
     const book = new BookPage(config);
+    const bookReviews = new BookReviewsPage(config);
     const favorites = new FavoritesPage(config);
 
     const opensearch = new OpensearchPage(config);
@@ -41,6 +43,7 @@ module.exports = function(app, config) {
         ['/title', title],
         ['/genre', genre],
         ['/book', book],
+        ['/book/reviews', bookReviews],
         ['/favorites', favorites],
 
         ['/opensearch', opensearch],

@@ -22,6 +22,7 @@ const Fb2Helper = require('./fb2/Fb2Helper');
 // 7z read and covers
 const extractZipCoverAndConvert = require("./CoverJXLConvert");
 const Fb2AppendImages = require("./Fb2AppendImages");
+const ReviewsReader = require('./ReviewsReader');
 
 //server states
 const ssNormal = 'normal';
@@ -75,6 +76,7 @@ class WebWorker {
             this.periodicCleanDir(dirConfig);//no await
             this.periodicCheckInpx();//no await
             this.periodicCheckNewRelease();//no await
+            this.reviewsReader = null;
 
             instance = this;
         }
@@ -199,7 +201,7 @@ class WebWorker {
 
             try {
                 //открываем таблицы
-                await db.openAll({exclude: ['author_id', 'series_id', 'title_id', 'book']});
+                await db.openAll({exclude: ['author_id', 'series_id', 'title_id', 'book', 'reviews_index']});
 
                 const bookCacheSize = 500;
                 await db.open({
@@ -227,6 +229,24 @@ class WebWorker {
             this.setMyState(ssNormal);
 
             log('Searcher DB ready');
+
+            // рецензии — после перехода в normal
+            const dbConfig = await this.dbConfig();
+            const reviewsEnabled = dbConfig.stats && dbConfig.stats.reviewsEnabled;
+
+            if (reviewsEnabled) {
+                try {
+                    await db.open({table: 'reviews_index', cacheSize: 50});
+                    this.reviewsReader = new ReviewsReader(this.config, db);
+                    log('Reviews index ready');
+                } catch (e) {
+                    log(LM_WARN, `reviews_index not found, but reviewsEnabled=true. Recreate DB to build index.`);
+                    this.reviewsReader = null;
+                }
+            } else {
+                this.reviewsReader = null;
+            }
+
             this.logServerStats();
         } catch (e) {
             log(LM_FATAL, e.message);            
@@ -661,6 +681,50 @@ class WebWorker {
                 throw new Error('404 Файл не найден');
             throw e;
         }
+    }
+
+    async getBookReviews(bookUid) {
+        this.checkMyState();
+
+        if (!this.reviewsReader)
+            throw new Error('reviews_disabled');
+
+        // найдём книгу
+        const bookRows = await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(bookUid)})`,
+        });
+
+        if (!bookRows.length)
+            throw new Error('404 Книга не найдена');
+
+        const book = bookRows[0];
+        const folder = book.folder;
+        const file = `${book.file}.${book.ext}`;
+
+
+        return await this.reviewsReader.read(folder, file);
+    }
+    
+    async getBookReviewsCount(bookUid) {
+        this.checkMyState();
+
+        if (!this.reviewsReader)
+            throw new Error('reviews_disabled');
+
+        const bookRows = await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(bookUid)})`,
+        });
+
+        if (!bookRows.length)
+            throw new Error('404 Книга не найдена');
+
+        const book = bookRows[0];
+        const folder = book.folder;
+        const file = `${book.file}.${book.ext}`;
+
+        return await this.reviewsReader.getCount(folder, file);
     }
 
     async getInpxFile(params) {

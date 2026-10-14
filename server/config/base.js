@@ -45,8 +45,10 @@ module.exports = {
     inpxCheckInterval: 60,//minutes
     lowMemoryMode: false,
     fullOptimization: false,
+    reviewsEnabled: true,   // включает показ рецензий, добавляет вкладку рецензий и ссылку на рецензии в OPDS карточку книги
+    reviewsInOpds: false,   // показывать превью 3 рецензий в OPDS-карточке книги (дорого: открывает 7z)
 
-    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external'],
+    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'reviewsEnabled', 'reviewsInOpds'],
 
     allowRemoteLib: false,
     remoteLib: false,

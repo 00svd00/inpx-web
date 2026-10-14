@@ -32,6 +32,8 @@ const propsToSave = [
     'inpxCheckInterval',
     'lowMemoryMode',
     'fullOptimization',
+    'reviewsEnabled',
+    'reviewsInOpds',
     'allowRemoteLib',
     'remoteLib',
     'server',

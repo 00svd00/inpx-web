@@ -131,6 +131,43 @@ class BookPage extends BasePage {
         return info;
     }
 
+    htmlReviews(reviews, bookUid) {
+        const maxShow = 3;
+        const maxTextLen = 500;
+
+        let result = `<h2>Рецензии (${reviews.foundCount})</h2>`;
+        if (reviews.declaredCount && reviews.sum) {
+            const avg = (reviews.sum / reviews.declaredCount).toFixed(1);
+            result += `<p>Оценок: ${reviews.declaredCount}, средняя: ${avg}</p>`;
+        }
+
+        if (!reviews.reviews.length) {
+            result += `<p>Тексты рецензий не найдены.</p>`;
+            return result;
+        }
+
+        const list = reviews.reviews.slice(0, maxShow);
+        for (const r of list) {
+            let text = (r.text || '').replace(/<br\s*\/?>/gi, '\n');
+            text = text.replace(/<[^>]+>/g, '');
+
+            if (text.length > maxTextLen)
+                text = text.substring(0, maxTextLen) + '...';
+
+            text = this.escape(text).replace(/\n/g, '<br/>');
+
+            const name = r.name ? this.escape(r.name) : 'Аноним';
+            const time = r.time ? this.escape(r.time) : '';
+
+            result += `<p><b>${name}</b>${time ? ` — ${time}` : ''}</p>`;
+            result += `<p>${text}</p>`;
+        }
+
+        if (reviews.reviews.length > maxShow)
+            result += `<p>Показано ${maxShow} из ${reviews.reviews.length}.</p>`;
+
+        return result;
+    }
     async body(req) {
         const result = {};
 
@@ -218,6 +255,27 @@ class BookPage extends BasePage {
                 //content
                 info += this.htmlInfo('Inpx инфо', this.inpxInfo(bookInfo.book));
 
+                // рецензии: счётчики (дёшево)
+                let reviewsCount = null;
+                if (this.config.reviewsEnabled) {
+                    try {
+                        reviewsCount = await this.webWorker.getBookReviewsCount(bookUid);
+                    } catch (e) {
+                        // reviews_disabled / 404 — пропускаем
+                    }
+                }
+
+                // рецензии: превью (дорого, только если включено)
+                if (reviewsCount && reviewsCount.declaredCount && this.config.reviewsInOpds) {
+                    try {
+                        const reviewsData = await this.webWorker.getBookReviews(bookUid);
+                        if (reviewsData && reviewsData.declaredCount)
+                            info += this.htmlReviews(reviewsData, bookUid);
+                    } catch (e) {
+                        // пропускаем
+                    }
+                }
+
                 content = `${ann}${info}`;
                 if (content) {
                     e.content = {
@@ -230,6 +288,18 @@ class BookPage extends BasePage {
                 e.link = [];
                 for (const [fileFormat, downHref] of Object.entries(formats))
                     e.link.push(this.downLink({href: downHref, type: `application/${fileFormat}`}));
+                // рецензии — ссылка на OPDS-каталог (дёшево)
+                if (reviewsCount && reviewsCount.declaredCount) {
+                    const reviewsHref = `${this.opdsRoot}/book/reviews?uid=${encodeURIComponent(bookUid)}`;
+                    const reviewsTitle = `Рецензии (${reviewsCount.declaredCount} оценок)`;
+
+                    e.link.push(this.makeLink({
+                        href: reviewsHref,
+                        rel: 'alternate',
+                        type: 'application/atom+xml;profile=opds-catalog',
+                        title: reviewsTitle,
+                    }));
+                }
                 //external tools (OPDS)
                 if (this.config.external) {
                     for (const [key, ext] of Object.entries(this.config.external)) {

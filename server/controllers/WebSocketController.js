@@ -102,6 +102,8 @@ class WebSocketController {
                     await this.getBookLink(req, ws); break;
                 case 'get-book-info':
                     await this.getBookInfo(req, ws); break;
+                case 'get-book-reviews':
+                    await this.getBookReviews(req, ws); break;
 
                 case 'get-inpx-file':
                     await this.getInpxFile(req, ws); break;
@@ -218,6 +220,15 @@ class WebSocketController {
             throw new Error(`bookUid is empty`);
 
         const result = await this.webWorker.getBookInfo(req.bookUid);
+
+        this.send(result, req, ws);
+    }
+
+    async getBookReviews(req, ws) {
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        const result = await this.webWorker.getBookReviews(req.bookUid);
 
         this.send(result, req, ws);
     }
