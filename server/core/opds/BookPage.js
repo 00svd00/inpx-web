@@ -300,6 +300,27 @@ class BookPage extends BasePage {
                         title: reviewsTitle,
                     }));
                 }
+
+                // авторы — ссылка на OPDS-каталог (дёшево, только db.select)
+                if (this.config.authorsBioEnabled) {
+                    try {
+                        const authors = await this.webWorker.getBookAuthors(bookUid);
+                        const found = authors.filter(a => a.found);
+                        if (found.length) {
+                            const authorsHref = `${this.opdsRoot}/book/authors?uid=${encodeURIComponent(bookUid)}`;
+                            const authorsTitle = `Об авторах (${found.length})`;
+                            e.link.push(this.makeLink({
+                                href: authorsHref,
+                                rel: 'alternate',
+                                type: 'application/atom+xml;profile=opds-catalog',
+                                title: authorsTitle,
+                            }));
+                        }
+                    } catch (e) {
+                        // authors_disabled / 404 — пропускаем
+                    }
+                }
+
                 //external tools (OPDS)
                 if (this.config.external) {
                     for (const [key, ext] of Object.entries(this.config.external)) {

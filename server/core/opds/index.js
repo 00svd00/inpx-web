@@ -9,6 +9,8 @@ const BookPage = require('./BookPage');
 const BookReviewsPage = require('./BookReviewsPage');
 const FavoritesPage = require('./FavoritesPage');
 
+const BookAuthorsPage = require('./BookAuthorsPage'); //биографии авторов
+
 const OpensearchPage = require('./OpensearchPage');
 const SearchPage = require('./SearchPage');
 const SearchHelpPage = require('./SearchHelpPage');
@@ -31,6 +33,8 @@ module.exports = function(app, config) {
     const bookReviews = new BookReviewsPage(config);
     const favorites = new FavoritesPage(config);
 
+    const bookAuthors = new BookAuthorsPage(config);
+
     const opensearch = new OpensearchPage(config);
     const search = new SearchPage(config);
     const searchHelp = new SearchHelpPage(config);
@@ -45,6 +49,7 @@ module.exports = function(app, config) {
         ['/book', book],
         ['/book/reviews', bookReviews],
         ['/favorites', favorites],
+        ['/book/authors', bookAuthors],
 
         ['/opensearch', opensearch],
         ['/search', search],

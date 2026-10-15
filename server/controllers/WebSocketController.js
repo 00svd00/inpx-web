@@ -104,6 +104,10 @@ class WebSocketController {
                     await this.getBookInfo(req, ws); break;
                 case 'get-book-reviews':
                     await this.getBookReviews(req, ws); break;
+                case 'get-book-authors':
+                    await this.getBookAuthors(req, ws); break;
+                case 'get-author-bio':
+                    await this.getAuthorBio(req, ws); break;
 
                 case 'get-inpx-file':
                     await this.getInpxFile(req, ws); break;
@@ -231,6 +235,24 @@ class WebSocketController {
         const result = await this.webWorker.getBookReviews(req.bookUid);
 
         this.send(result, req, ws);
+    }
+
+    async getBookAuthors(req, ws) {
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        const authors = await this.webWorker.getBookAuthors(req.bookUid);
+
+        this.send({authors}, req, ws);
+    }
+
+    async getAuthorBio(req, ws) {
+        if (!utils.hasProp(req, 'hash'))
+            throw new Error(`hash is empty`);
+
+        const bio = await this.webWorker.getAuthorBio(req.hash);
+
+        this.send({bio}, req, ws);
     }
 
     async getInpxFile(req, ws) {

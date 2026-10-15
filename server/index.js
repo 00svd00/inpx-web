@@ -61,11 +61,13 @@ async function init() {
     config.rootPathStatic = config.server.root || '';
     config.bookPathStatic = `${config.rootPathStatic}/book`;
     config.bookDir = `${config.publicFilesDir}/book`;
+    config.authorDir = `${config.publicFilesDir}/author`;
 
     configManager.config = config;
 
     await fs.ensureDir(config.dataDir);
     await fs.ensureDir(config.bookDir);
+    await fs.ensureDir(config.authorDir);
     await fs.ensureDir(config.tempDir);
     await fs.emptyDir(config.tempDir);
 
@@ -207,6 +209,9 @@ async function main() {
 
     const opds = require('./core/opds');
     opds(app, config);
+
+    const initAuthorPhoto = require('./core/AuthorPhotoRoute');
+    initAuthorPhoto(app, config);
 
     const initStatic = require('./static');
     initStatic(app, config);

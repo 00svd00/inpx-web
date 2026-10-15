@@ -23,6 +23,7 @@ const Fb2Helper = require('./fb2/Fb2Helper');
 const extractZipCoverAndConvert = require("./CoverJXLConvert");
 const Fb2AppendImages = require("./Fb2AppendImages");
 const ReviewsReader = require('./ReviewsReader');
+const AuthorBioReader = require('./AuthorBioReader');
 
 //server states
 const ssNormal = 'normal';
@@ -71,12 +72,17 @@ class WebWorker {
                     dir: config.bookDir,
                     maxSize: config.maxFilesDirSize,
                 },
+                {
+                    dir: config.authorDir,
+                    maxSize: config.maxAuthorPhotoDirSize || 20*1024*1024,
+                },
             ];
 
             this.periodicCleanDir(dirConfig);//no await
             this.periodicCheckInpx();//no await
             this.periodicCheckNewRelease();//no await
             this.reviewsReader = null;
+            this.authorBioReader = null;
 
             instance = this;
         }
@@ -201,7 +207,7 @@ class WebWorker {
 
             try {
                 //открываем таблицы
-                await db.openAll({exclude: ['author_id', 'series_id', 'title_id', 'book', 'reviews_index']});
+                await db.openAll({exclude: ['author_id', 'series_id', 'title_id', 'book', 'reviews_index', 'authors_info']});
 
                 const bookCacheSize = 500;
                 await db.open({
@@ -246,7 +252,21 @@ class WebWorker {
             } else {
                 this.reviewsReader = null;
             }
+            // авторы — после перехода в normal
+            const authorsBioEnabled = dbConfig.stats && dbConfig.stats.authorsBioEnabled;
 
+            if (authorsBioEnabled) {
+                try {
+                    await db.open({table: 'authors_info', cacheSize: 50});
+                    this.authorBioReader = new AuthorBioReader(this.config, db);
+                    log('Authors index ready');
+                } catch (e) {
+                    log(LM_WARN, `authors_info not found, but authorsBioEnabled=true. Recreate DB to build index.`);
+                    this.authorBioReader = null;
+                }
+            } else {
+                this.authorBioReader = null;
+            }
             this.logServerStats();
         } catch (e) {
             log(LM_FATAL, e.message);            
@@ -725,6 +745,68 @@ class WebWorker {
         const file = `${book.file}.${book.ext}`;
 
         return await this.reviewsReader.getCount(folder, file);
+    }
+
+    async getBookAuthors(bookUid) {
+        this.checkMyState();
+
+        if (!this.authorBioReader)
+            throw new Error('authors_disabled');
+
+        const bookRows = await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(bookUid)})`,
+        });
+
+        if (!bookRows.length)
+            throw new Error('404 Книга не найдена');
+
+        const book = bookRows[0];
+        if (!book.author)
+            return [];
+
+        // author — строка вида "Фамилия Имя Отчество,Фамилия2 Имя2"
+        const names = book.author.split(',').map(a => a.trim()).filter(a => a);
+
+        const result = [];
+        for (const name of names) {
+            const normalized = name.split(/\s+/).filter(Boolean).join(' ').toLowerCase().trim();
+            const hash = utils.getBufHash(Buffer.from(normalized, 'utf8'), 'md5', 'hex');
+
+            const archiveId = await this.authorBioReader.getArchiveId(hash);
+
+            result.push({
+                name,
+                hash,
+                found: archiveId !== null,
+            });
+        }
+
+        return result;
+    }
+
+    async getAuthorBio(hash) {
+        this.checkMyState();
+
+        if (!this.authorBioReader)
+            throw new Error('authors_disabled');
+
+        return await this.authorBioReader.getBio(hash);
+    }
+
+    async getAuthorPhoto(hash) {
+        this.checkMyState();
+
+        if (!this.authorBioReader)
+            throw new Error('authors_disabled');
+
+        return await this.authorBioReader.getPhoto(hash);
+    }
+
+    getAuthorPhotoMime(ext) {
+        if (!this.authorBioReader)
+            return 'application/octet-stream';
+        return this.authorBioReader.mimeFromExt(ext);
     }
 
     async getInpxFile(params) {

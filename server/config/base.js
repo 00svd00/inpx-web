@@ -38,6 +38,7 @@ module.exports = {
 
     maxPayloadSize: 500,//in MB
     maxFilesDirSize: 1024*1024*1024,//1Gb
+    maxAuthorPhotoDirSize: 20*1024*1024,      // 20 MB — фото авторов
     queryCacheEnabled: true,
     queryCacheMemSize: 50,
     queryCacheDiskSize: 500,
@@ -47,8 +48,9 @@ module.exports = {
     fullOptimization: false,
     reviewsEnabled: true,   // включает показ рецензий, добавляет вкладку рецензий и ссылку на рецензии в OPDS карточку книги
     reviewsInOpds: false,   // показывать превью 3 рецензий в OPDS-карточке книги (дорого: открывает 7z)
+    authorsBioEnabled: true,   // включает показ биографий авторов и ссылку «Об авторах» в OPDS-карточке книги
 
-    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'reviewsEnabled', 'reviewsInOpds'],
+    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'reviewsInOpds', 'authorsBioEnabled', 'rootPathStatic'],
 
     allowRemoteLib: false,
     remoteLib: false,

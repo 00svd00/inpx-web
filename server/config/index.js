@@ -34,6 +34,7 @@ const propsToSave = [
     'fullOptimization',
     'reviewsEnabled',
     'reviewsInOpds',
+    'authorsBioEnabled',
     'allowRemoteLib',
     'remoteLib',
     'server',

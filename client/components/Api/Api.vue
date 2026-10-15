@@ -50,7 +50,8 @@ const stepBound = [
     56,  // jobStep = 7  (others save)
     66,  // jobStep = 8  (optimization)
     76,  // jobStep = 9  (stats count)
-    96,  // jobStep = 10 (reviews index)
+    86,  // jobStep = 10 (reviews index)
+    96,  // jobStep = 11 (authors index)
 ];
 
 const componentOptions = {
@@ -266,6 +267,14 @@ class Api {
 
     async getBookReviews(bookUid) {
         return await this.request({action: 'get-book-reviews', bookUid}, 60);
+    }
+
+    async getBookAuthors(bookUid) {
+        return await this.request({action: 'get-book-authors', bookUid}, 30);
+    }
+
+    async getAuthorBio(hash) {
+        return await this.request({action: 'get-author-bio', hash}, 30);
     }
     
     async getConfig() {

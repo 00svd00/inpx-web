@@ -41,12 +41,13 @@
                             <q-tab v-if="fb2.length" name="fb2" label="Fb2 инфо" />
                             <q-tab name="inpx" label="Inpx инфо" />
                             <q-tab name="reviews" :label="reviewsTabLabel" :disable="!reviewsAvailable" />
+                            <q-tab name="authors" :label="authorsTabLabel" :disable="!authorsAvailable" />
                         </q-tabs>
                     </div>
 
                     <div class="overflow-auto full-width" style="height: 262px">
                         <!-- fb2 / inpx -->
-                        <template v-if="selectedTab !== 'reviews'">
+                        <template v-if="selectedTab === 'fb2' || selectedTab === 'inpx'">
                             <div v-for="item in info" :key="item.name">
                                 <div class="row q-ml-sm q-mt-sm items-center">
                                     <div class="text-blue" style="font-size: 90%">
@@ -65,7 +66,7 @@
                         </template>
 
                         <!-- reviews -->
-                        <template v-else>
+                        <template v-else-if="selectedTab === 'reviews'">
                             <div v-if="reviewsLoading" class="q-pa-md text-center text-grey">
                                 Загрузка рецензий...
                             </div>
@@ -85,6 +86,40 @@
                                 </div>
                                 <div v-if="!reviews.reviews.length" class="q-pa-md text-center text-grey">
                                     Рецензии не найдены
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- authors -->
+                        <template v-else-if="selectedTab === 'authors'">
+                            <div v-if="authorsLoading" class="q-pa-md text-center text-grey">
+                                Загрузка авторов...
+                            </div>
+                            <div v-else-if="authorsError" class="q-pa-md text-red">
+                                {{ authorsError }}
+                            </div>
+                            <div v-else>
+                                <div v-for="(author, i) in authors" :key="i" class="q-pa-sm" style="border-top: 1px solid #eee">
+                                    <div class="row items-start no-wrap">
+                                        <img
+                                            v-if="author.found"
+                                            :src="authorPhotoUrl(author.hash)"
+                                            class="q-mr-sm"
+                                            style="width: 80px; height: 80px; object-fit: cover"
+                                            @error="$event.target.style.display = 'none'"
+                                        />
+                                        <div class="col">
+                                            <div class="text-grey-7" style="font-size: 95%">
+                                                <b>{{ author.name }}</b>
+                                            </div>
+                                            <div v-if="author.found && author.bio" v-html="author.bio" style="text-align: justify" />
+                                            <div v-else-if="author.found" class="text-grey">Биография не найдена</div>
+                                            <div v-else class="text-grey">Автор не найден в базе</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="!authors.length" class="q-pa-md text-center text-grey">
+                                    Авторы не найдены
                                 </div>
                             </div>
                         </template>
@@ -144,6 +179,9 @@ const componentOptions = {
             if (newValue === 'reviews' && !this.reviewsLoaded && !this.reviewsLoading) {
                 this.loadReviews();
             }
+            if (newValue === 'authors' && !this.authorsLoaded && !this.authorsLoading) {
+                this.loadAuthors();
+            }
         },
     }
 };
@@ -170,6 +208,12 @@ class BookInfoDialog {
     reviewsError = '';
     reviews = {declaredCount: 0, sum: 0, foundCount: 0, reviews: []};
     reviewsLoaded = false;
+
+    //authors
+    authorsLoading = false;
+    authorsError = '';
+    authors = [];
+    authorsLoaded = false;
 
     created() {
         this.commit = this.$store.commit;
@@ -199,6 +243,12 @@ class BookInfoDialog {
         this.reviews = {declaredCount: 0, sum: 0, foundCount: 0, reviews: []};
         this.reviewsLoaded = false;
 
+        //authors
+        this.authorsLoading = false;
+        this.authorsError = '';
+        this.authors = [];
+        this.authorsLoaded = false;
+
         this.parseBookInfo();
 
         this.selectedTab = this.fb2.length ? 'fb2' : 'inpx';
@@ -217,6 +267,10 @@ class BookInfoDialog {
         return this.config.reviewsEnabled && this.book._uid;
     }
 
+    get authorsAvailable() {
+        return this.config.authorsBioEnabled && this.book._uid;
+    }
+
     get avgRating() {
         if (!this.reviews.declaredCount || !this.reviews.sum)
             return '';
@@ -227,6 +281,12 @@ class BookInfoDialog {
         if (this.reviewsLoaded && this.reviews.foundCount)
             return `Рецензии (${this.reviews.foundCount})`;
         return 'Рецензии';
+    }
+
+    get authorsTabLabel() {
+        if (this.authorsLoaded && this.authors.length)
+            return `Об авторе (${this.authors.length})`;
+        return 'Об авторе';
     }
 
     formatSize(size) {
@@ -392,6 +452,11 @@ class BookInfoDialog {
         this.posterDialogVisible = true;
     }
 
+    authorPhotoUrl(hash) {
+        const root = this.config.rootPathStatic || '';
+        return `${root}/author/photo?hash=${encodeURIComponent(hash)}`;
+    }
+
     async loadReviews() {
         if (this.reviewsLoading || this.reviewsLoaded)
             return;
@@ -407,6 +472,41 @@ class BookInfoDialog {
             this.reviewsError = e.message;
         } finally {
             this.reviewsLoading = false;
+        }
+    }
+
+    async loadAuthors() {
+        if (this.authorsLoading || this.authorsLoaded)
+            return;
+
+        this.authorsLoading = true;
+        this.authorsError = '';
+
+        try {
+            const res = await this.api.getBookAuthors(this.book._uid);
+            const list = res.authors || [];
+
+            // догружаем биографии последовательно
+            const result = [];
+            for (const a of list) {
+                let bio = null;
+                if (a.found) {
+                    try {
+                        const bioRes = await this.api.getAuthorBio(a.hash);
+                        bio = bioRes.bio;
+                    } catch (e) {
+                        bio = null;
+                    }
+                }
+                result.push(Object.assign({}, a, {bio}));
+            }
+
+            this.authors = result;
+            this.authorsLoaded = true;
+        } catch (e) {
+            this.authorsError = e.message;
+        } finally {
+            this.authorsLoading = false;
         }
     }
 

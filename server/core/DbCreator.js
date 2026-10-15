@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const ReviewsIndexer = require('./ReviewsIndexer');
+const AuthorBioIndexer = require('./AuthorBioIndexer');
 
 const InpxParser = require('./InpxParser');
 const InpxHashCreator = require('./InpxHashCreator');
@@ -342,6 +343,8 @@ class DbCreator {
             langCount: langArr.length,
             reviewsEnabled: false,
             reviewsCount: 0,
+            authorsBioEnabled: false,
+            authorsBioCount: 0,
         };
         //console.log(stats);
 
@@ -473,6 +476,24 @@ class DbCreator {
         }
 
         stats.reviewsEnabled = reviewsEnabled;
+
+        // -- авторы --------------------------------------------
+        let authorsBioEnabled = false;
+        if (config.authorsBioEnabled && config.libDir) {
+            const authorsDir = path.join(config.libDir, 'etc', 'authors');
+            authorsBioEnabled = await fs.pathExists(authorsDir);
+        }
+
+        if (authorsBioEnabled) {
+            callback({job: 'authors index', jobMessage: 'Индексация биографий', jobStep: 11, progress: 0});
+
+            const indexer = new AuthorBioIndexer(config);
+            stats.authorsBioCount = await indexer.build(db, (p) => callback(p));
+        } else {
+            stats.authorsBioCount = 0;
+        }
+
+        stats.authorsBioEnabled = authorsBioEnabled;
 
         //чистка памяти, ибо жрет как не в себя
         await db.close({table: 'book'});
