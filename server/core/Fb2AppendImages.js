@@ -3,6 +3,7 @@ const iconv = require('iconv-lite');
 const path = require("path");
 const seven7z = require("node-7z");
 const ZipReader = require("./ZipReader.js");
+const SevenZipHelper = require('./SevenZipHelper');
 const { execFileSync } = require("node:child_process");
 
 const convertImageToBase64 = (filePath, imageExt = "png") => {
@@ -155,8 +156,8 @@ async function getImagesBase64(config, libFolder, fileName) {
 }
 
 async function extractFrom7z(config, arhivePath, libFolder, fileName, outFile) {
-    // Определяем путь к 7z: сначала из конфига, потом через findSevenZip()
-    const sevenZipPath = config.sevenZipPath || ZipReader.getSevenZipPath();
+    // Определяем путь к 7z: сначала из конфига, потом через getSevenZipPath()
+    const sevenZipPath = config.sevenZipPath || SevenZipHelper.getSevenZipPath();
     if (!sevenZipPath) {
         throw new Error('7-Zip not found. Install it or specify "sevenZipPath" in config.json');
     }

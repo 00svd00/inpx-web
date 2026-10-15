@@ -1,46 +1,17 @@
 const path = require('path');
-const ZipReader = require('./ZipReader');
-const { spawn } = require('child_process');
+
+const SevenZipHelper = require('./SevenZipHelper');
 
 class ReviewsReader {
     constructor(config, db) {
         this.config = config;
         this.db = db;
         this.reviewsDir = path.join(config.libDir, 'etc', 'reviews');
+        this.archive = new SevenZipHelper();
         this.cache = new Map();
         this.cacheMaxSize = 100;
         this.cacheMaxReviews = 5000;
         this.cacheReviewsCount = 0;
-    }
-
-    _spawn7z(args) {
-        return new Promise((resolve, reject) => {
-            const bin = ZipReader.getSevenZipPath();
-            if (!bin) {
-                reject(new Error('7z not found. Install 7-Zip or set sevenZipPath in config.'));
-                return;
-            }
-            const proc = spawn(bin, args);
-
-            const outChunks = [];
-            const errChunks = [];
-
-            proc.stdout.on('data', c => outChunks.push(c));
-            proc.stderr.on('data', c => errChunks.push(c));
-            proc.on('error', reject);
-            proc.on('close', code => {
-                if (code !== 0) {
-                    reject(new Error(`7z exited with ${code}: ${Buffer.concat(errChunks).toString()}`));
-                } else {
-                    resolve(Buffer.concat(outChunks));
-                }
-            });
-        });
-    }
-
-    async extractFile(archivePath, entryName) {
-        const out = await this._spawn7z(['e', '-so', '-y', archivePath, `-i!${entryName}`]);
-        return out;
     }
 
     // только счётчики, без открытия 7z — дёшево
@@ -95,7 +66,7 @@ class ReviewsReader {
         for (const month of months) {
             const archivePath = path.join(this.reviewsDir, `${month}.7z`);
             try {
-                const buf = await this.extractFile(archivePath, key);
+                const buf = await this.archive.extract(archivePath, key);
                 const arr = JSON.parse(buf.toString('utf8'));
                 if (Array.isArray(arr))
                     result.reviews.push(...arr);

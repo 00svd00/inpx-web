@@ -77,7 +77,7 @@ async function init() {
     log = appLogger.log;
 
     //sevenZip
-    const { setSevenZipPath, getSevenZipPath } = require('./core/ZipReader');
+    const { setSevenZipPath, getSevenZipPath } = require('./core/SevenZipHelper');
     setSevenZipPath(config.sevenZipPath);
     log(`sevenZipPath: ${getSevenZipPath() || 'not found'}`);
 
