@@ -40,8 +40,8 @@
                         >
                             <q-tab v-if="fb2.length" name="fb2" label="Fb2 инфо" />
                             <q-tab name="inpx" label="Inpx инфо" />
-                            <q-tab name="reviews" :label="reviewsTabLabel" :disable="!reviewsAvailable" />
-                            <q-tab name="authors" :label="authorsTabLabel" :disable="!authorsAvailable" />
+                            <q-tab v-if="reviewsAvailable" name="reviews" :label="reviewsTabLabel" />
+                            <q-tab v-if="authorsBioAvailable" name="authors" :label="authorsTabLabel" />
                         </q-tabs>
                     </div>
 
@@ -267,7 +267,7 @@ class BookInfoDialog {
         return this.config.reviewsEnabled && this.book._uid;
     }
 
-    get authorsAvailable() {
+    get authorsBioAvailable() {
         return this.config.authorsBioEnabled && this.book._uid;
     }
 
