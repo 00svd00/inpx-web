@@ -6,6 +6,8 @@ const ZipReader = require("./ZipReader.js");
 const SevenZipHelper = require('./SevenZipHelper');
 const { execFileSync } = require("node:child_process");
 
+const JXL_JPEG_QUALITY = 70; // качество jpeg при конвертации из dxl (для fb2 оптимально 60-70)
+
 const convertImageToBase64 = (filePath, imageExt = "png") => {
     try {
         const pngBuffer = fs.readFileSync(filePath);
@@ -41,7 +43,7 @@ function isJpgBuffer(buffer) {
 const { resolveDjxl } = require('./DjxlResolver');
 
 async function jxlConvert(imageBuff, pathTmp, namefile) {
-    let ext = "png"
+    let ext = "png";
     let outputImg = `${pathTmp}/${namefile}.${ext}`;
 
     if (isJxlBuffer(imageBuff)) {
@@ -49,7 +51,22 @@ async function jxlConvert(imageBuff, pathTmp, namefile) {
         if (!djxlPath) {
             throw new Error('djxl not found neither next to executable nor in PATH');
         }
-        execFileSync(djxlPath, ["--bits_per_sample=8", "-", outputImg], {
+        ext = "jpeg";
+        outputImg = `${pathTmp}/${namefile}.jpg`;
+
+        // Конвертация в png ОЧЕНЬ раздувает размер fb2.
+        // На случай jxl полученных из png делаем --background=white --alpha_blend иначе будет чёрное на чёрном.
+        //--use_sjpeg алтернативный jpeg энкодер от google. Немного уменьшает вес без видимой потери качества
+        execFileSync(djxlPath, [
+            "--quiet",
+            "--bits_per_sample=8",
+            `--jpeg_quality=${JXL_JPEG_QUALITY}`,
+            "--background=white",
+            "--alpha_blend",
+            "--use_sjpeg",
+            "-",
+            outputImg
+        ], {
             input: imageBuff,
             maxBuffer: 50 * 1024 * 1024,
             stdio: ['pipe', 'pipe', 'pipe']
@@ -57,7 +74,7 @@ async function jxlConvert(imageBuff, pathTmp, namefile) {
 
     } else {
         if (isJpgBuffer(imageBuff)) {
-            ext = "jpeg"
+            ext = "jpeg";
             outputImg = `${pathTmp}/${namefile}.jpg`;
         }
 
