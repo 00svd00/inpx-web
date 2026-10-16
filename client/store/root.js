@@ -23,6 +23,7 @@ const state = {
         showJson: false,
         showNewReleaseAvailable: true,
     },    
+    favoriteUids: new Set(),
 };
 
 // getters
@@ -38,6 +39,20 @@ const mutations = {
     },
     setSettings(state, value) {
         state.settings = Object.assign({}, state.settings, value);
+    },
+    // избранное
+    setFavoriteUids(state, uids) {
+        state.favoriteUids = new Set(uids || []);
+    },
+    addFavoriteUid(state, uid) {
+        const s = new Set(state.favoriteUids);
+        s.add(uid);
+        state.favoriteUids = s;
+    },
+    removeFavoriteUid(state, uid) {
+        const s = new Set(state.favoriteUids);
+        s.delete(uid);
+        state.favoriteUids = s;
     },
 };
 

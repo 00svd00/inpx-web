@@ -2,10 +2,13 @@ const fs = require('fs-extra');
 const path = require('path');
 const ReviewsIndexer = require('./ReviewsIndexer');
 const AuthorBioIndexer = require('./AuthorBioIndexer');
+const Favorites = require('./Favorites');
 
 const InpxParser = require('./InpxParser');
 const InpxHashCreator = require('./InpxHashCreator');
 const utils = require('./utils');
+
+const log = new (require('./AppLogger'))().log;
 
 const emptyFieldValue = '?';
 
@@ -494,6 +497,36 @@ class DbCreator {
         }
 
         stats.authorsBioEnabled = authorsBioEnabled;
+
+        // -- очистка избранного ---------------------------------
+        const favoritesEnabled = config.favorites && config.favorites.enabled;
+
+        if (favoritesEnabled) {
+            callback({job: 'favorites cleanup', jobMessage: 'Очистка избранного', jobStep: 12, progress: 0});
+
+            try {
+                const favorites = new Favorites(config);
+                const favList = await favorites.list();
+
+                if (favList.length) {
+                    const uids = favList.map(f => f.uid);
+                    const bookRows = await db.select({
+                        table: 'book',
+                        where: `@@hash('_uid', ${db.esc(uids)})`,
+                    });
+
+                    const bookSet = new Set(bookRows.map(r => r._uid));
+                    const deadUids = uids.filter(uid => !bookSet.has(uid));
+
+                    if (deadUids.length) {
+                        await favorites.remove(deadUids);
+                        log(`Favorites: removed ${deadUids.length} dead entries`);
+                    }
+                }
+            } catch (e) {
+                log(LM_WARN, `Favorites cleanup failed: ${e.message}`);
+            }
+        }
 
         //чистка памяти, ибо жрет как не в себя
         await db.close({table: 'book'});

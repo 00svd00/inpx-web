@@ -1,6 +1,18 @@
 <template>
     <div class="row items-center q-my-sm no-wrap">
         <div class="row items-center">
+            <div v-if="showFavorite" class="q-mr-xs">
+                <q-icon
+                    :name="favoriteIcon"
+                    size="18px"
+                    :class="[favoriteColor, 'clickable-icon']"
+                    @click.stop.prevent="emit(favoriteEventAction)"
+                >
+                    <q-tooltip :delay="500" anchor="top middle" content-style="font-size: 80%" max-width="400px">
+                        {{ favoriteTooltip }}
+                    </q-tooltip>
+                </q-icon>
+            </div>
             <div v-if="showRates || showDeleted">
                 <div v-if="showRates && !book.del">
                     <div v-if="book.librate">
@@ -116,6 +128,8 @@ class BookView {
         genreMap: Object,
         showReadLink: Boolean,
         titleColor: { type: String, default: 'text-blue-10'},
+        favoriteAction: String,  // 'add' | 'remove' | undefined
+        isFavorite: Boolean,
     };
 
     showRates = true;
@@ -203,6 +217,38 @@ class BookView {
         return utils.sqlDateFormat(this.book.date);
     }
 
+    get showFavorite() {
+        if (!this.favoriteAction)
+            return false;
+
+        const fav = this.config.favorites;
+        return !!(fav && fav.enabled);
+    }
+
+    get favoriteIcon() {
+        if (this.favoriteAction === 'remove')
+            return 'la la-star';
+        return this.isFavorite ? 'la la-star' : 'la la-star-o';
+    }
+
+    get favoriteColor() {
+        if (this.favoriteAction === 'remove')
+            return 'text-yellow-8';
+        return this.isFavorite ? 'text-yellow-8' : 'text-grey-6';
+    }
+
+    get favoriteTooltip() {
+        if (this.favoriteAction === 'remove' || this.isFavorite)
+            return 'Удалить из избранного';
+        return 'Добавить в избранное';
+    }
+    
+    get favoriteEventAction() {
+        if (this.favoriteAction === 'remove')
+            return 'favoriteRemove';
+        return this.isFavorite ? 'favoriteRemove' : 'favoriteAdd';
+    }
+
     emit(action) {
         this.$emit('bookEvent', {action, book: this.book});
     }
@@ -222,4 +268,7 @@ export default vueComponent(BookView);
     cursor: pointer;
 }
 
+.clickable-icon {
+    cursor: pointer;
+}
 </style>

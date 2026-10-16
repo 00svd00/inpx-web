@@ -25,6 +25,8 @@ const Fb2AppendImages = require("./Fb2AppendImages");
 const ReviewsReader = require('./ReviewsReader');
 const AuthorBioReader = require('./AuthorBioReader');
 
+const Favorites = require('./Favorites');
+
 //server states
 const ssNormal = 'normal';
 const ssDbLoading = 'db_loading';
@@ -807,6 +809,73 @@ class WebWorker {
         if (!this.authorBioReader)
             return 'application/octet-stream';
         return this.authorBioReader.mimeFromExt(ext);
+    }
+
+    async getFavorites(offset = 0, limit = 50) {
+        this.checkMyState();
+
+        const favorites = new Favorites(this.config);
+        const favList = await favorites.list();
+
+        const total = favList.length;
+        const slice = (limit === 0)
+            ? favList.slice(offset)
+            : favList.slice(offset, offset + limit);
+
+        if (!slice.length)
+            return {books: [], total};
+
+        const uids = slice.map(f => f.uid);
+        const bookRows = await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(uids)})`,
+        });
+
+        const bookMap = new Map();
+        for (const row of bookRows)
+            bookMap.set(row._uid, row);
+
+        const books = [];
+        for (const fav of slice) {
+            const book = bookMap.get(fav.uid);
+            if (book)
+                books.push(Object.assign({}, fav, book));
+            else
+                books.push(Object.assign({}, fav, {deleted: true}));
+        }
+
+        return {books, total};
+    }
+
+    async getFavoriteUids() {
+        this.checkMyState();
+
+        const favorites = new Favorites(this.config);
+        const favList = await favorites.list();
+
+        return {uids: favList.map(f => f.uid)};
+    }
+
+    async addFavorite(bookUid) {
+        this.checkMyState();
+
+        const bookRows = await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(bookUid)})`,
+        });
+
+        if (!bookRows.length)
+            throw new Error('404 Книга не найдена');
+
+        const favorites = new Favorites(this.config);
+        await favorites.add(bookUid, bookRows[0]);
+    }
+
+    async removeFavorite(bookUid) {
+        this.checkMyState();
+
+        const favorites = new Favorites(this.config);
+        await favorites.remove(bookUid);
     }
 
     async getInpxFile(params) {

@@ -371,6 +371,8 @@ import SelectExtDialog from './SelectExtDialog/SelectExtDialog.vue';
 import BookInfoDialog from './BookInfoDialog/BookInfoDialog.vue';
 import SelectExtSearchDialog from './SelectExtSearchDialog/SelectExtSearchDialog.vue';
 
+import FavoritesList from './FavoritesList/FavoritesList.vue';
+
 import authorBooksStorage from './authorBooksStorage';
 import DivBtn from '../share/DivBtn.vue';
 import Dialog from '../share/Dialog.vue';
@@ -386,6 +388,7 @@ const route2component = {
     'author': {component: 'AuthorList', label: 'Авторы'},
     'series': {component: 'SeriesList', label: 'Серии'},
     'title': {component: 'TitleList', label: 'Книги'},
+    'favorites': {component: 'FavoritesList', label: 'Избранное'},
     'extended': {component: 'ExtendedList', label: 'Расширенный поиск'},
 };
 
@@ -404,6 +407,7 @@ const componentOptions = {
         SelectExtDialog,
         BookInfoDialog,
         SelectExtSearchDialog,
+        FavoritesList,
         Dialog,
         DivBtn
     },
@@ -432,6 +436,10 @@ const componentOptions = {
                     this.extSearch.page = newValue.page;
                     this.extSearch.limit = newValue.limit;
                 }
+
+                // favorites: не дёргаем api.search
+                if (this.selectedList === 'favorites')
+                    return;
             },
             deep: true,
         },
@@ -625,6 +633,16 @@ class Search {
 
             this.sendMessage({type: 'mes', data: 'hello-from-inpx-web'});
             this.updateSearchFromRouteQuery(this.$route);
+
+            // загрузка избранного (UID)
+            if (this.config.favorites && this.config.favorites.enabled) {
+                try {
+                    const result = await this.api.getFavoriteUids();
+                    this.commit('setFavoriteUids', result.uids || []);
+                } catch (e) {
+                    // игнорируем
+                }
+            }
         })();
     }
 
@@ -719,14 +737,23 @@ class Search {
 
     get listOptions() {
         const result = [];
-        for (const [route, rec] of Object.entries(route2component))
-            if (route == 'extended') {
-                if (this.config.extendedSearch) {
+
+        for (const [route, rec] of Object.entries(route2component)) {
+            if (route === 'extended') {
+                if (this.config.extendedSearch)
                     result.push({value: route, icon: 'la la-code', size: '10px'});
-                }
-            } else {
-                result.push({label: rec.label, value: route, icon: rec.icon});
+                continue;
             }
+
+            if (route === 'favorites') {
+                if (this.config.favorites && this.config.favorites.enabled)
+                    result.push({value: route, icon: 'la la-star-o', size: '10px'});
+                continue;
+            }
+
+            result.push({label: rec.label, value: route, icon: rec.icon});
+        }
+
         return result;
     }
 
@@ -1082,6 +1109,10 @@ class Search {
             case 'bookInfo':
                 this.bookInfo = event.data;
                 this.bookInfoDialogVisible = true;
+                break;
+            case 'totalFound':
+                this.list.totalFound = event.data;
+                this.updatePageCount();
                 break;
         }
     }

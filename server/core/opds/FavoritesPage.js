@@ -16,14 +16,21 @@ class FavoritesPage extends BasePage {
 
         result.link = this.baseLinks(req, true);
 
-        //удаление с полки: /opds/favorites?del=<uid>
+        // удаление: /opds/favorites?del=<uid>
         if (req.query.del)
             await this.favorites.remove(req.query.del);
 
-        const books = await this.favorites.list();
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = 100;
+        const offset = (page - 1)*limit;
+
+        const {books, total} = await this.webWorker.getFavorites(offset, limit);
 
         const entry = [];
         for (const book of books) {
+            if (book.deleted)
+                continue;
+
             const series = (book.series ? ` (Серия: ${book.series}${book.serno ? ` #${book.serno}` : ''})` : '');
 
             entry.push(
@@ -43,8 +50,28 @@ class FavoritesPage extends BasePage {
             entry.push(
                 this.makeEntry({
                     id: 'empty',
-                    title: '[Полка пуста, скачайте книгу]',
+                    title: (page === 1 ? '[Полка пуста, скачайте книгу]' : '[Страница пуста]'),
                     link: this.navLink({href: '/root'}),
+                })
+            );
+        }
+
+        if (total > offset + books.length) {
+            entry.push(
+                this.makeEntry({
+                    id: 'next_page',
+                    title: '[Следующая страница]',
+                    link: this.navLink({href: `/favorites?page=${page + 1}`}),
+                })
+            );
+        }
+
+        if (page > 1) {
+            entry.push(
+                this.makeEntry({
+                    id: 'prev_page',
+                    title: '[Предыдущая страница]',
+                    link: this.navLink({href: `/favorites?page=${page - 1}`}),
                 })
             );
         }

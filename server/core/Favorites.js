@@ -88,16 +88,26 @@ class Favorites {
         }
     }
 
-    async remove(bookUid) {
+    /**
+     * Удаляет одну или несколько книг из избранного.
+     * @param {string|string[]} uids - uid или массив uid
+     */
+    async remove(uids) {
+        if (!uids || (Array.isArray(uids) && !uids.length))
+            return;
+
+        const arr = Array.isArray(uids) ? uids : [uids];
+        const set = new Set(arr);
+
         await this.lock.get();
         try {
             await this.load();
 
-            const i = this.books.findIndex(b => b.uid === bookUid);
-            if (i >= 0) {
-                this.books.splice(i, 1);
+            const before = this.books.length;
+            this.books = this.books.filter(b => !set.has(b.uid));
+
+            if (this.books.length !== before)
                 await this.save();
-            }
         } finally {
             this.lock.ret();
         }

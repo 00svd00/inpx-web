@@ -65,6 +65,8 @@
                                 <BookView
                                     v-for="seriesBook in book.allBooks" :key="seriesBook.id"
                                     :book="seriesBook"
+                                    favorite-action="add"
+                                    :is-favorite="isFavorite(seriesBook)"
                                     mode="series"
                                     :genre-map="genreMap" :show-read-link="showReadLink"
                                     :title-color="isFoundSeriesBook(book, seriesBook) ? 'text-blue-10' : 'text-red'"
@@ -74,7 +76,13 @@
                             <div v-else class="book-row column">
                                 <BookView 
                                     v-for="seriesBook in book.seriesBooks" :key="seriesBook.key"
-                                    :book="seriesBook" mode="author" :genre-map="genreMap" :show-read-link="showReadLink" @book-event="bookEvent"
+                                    :book="seriesBook"
+                                    favorite-action="add"
+                                    :is-favorite="isFavorite(seriesBook)"
+                                    mode="author"
+                                    :genre-map="genreMap"
+                                    :show-read-link="showReadLink"
+                                    @book-event="bookEvent"
                                 />
                             </div>
 
@@ -105,7 +113,13 @@
                         </div>
                     </div>
                     <!-- книга без серии -->
-                    <BookView v-else :book="book" mode="author" :genre-map="genreMap" :show-read-link="showReadLink" @book-event="bookEvent" />
+                    <BookView v-else :book="book"
+                                    favorite-action="add"
+                                    :is-favorite="isFavorite(book)"
+                                    mode="author" 
+                                    :genre-map="genreMap"
+                                    :show-read-link="showReadLink"
+                                    @book-event="bookEvent" />
                 </div>
 
                 <!--div v-if="isExpandedAuthor(item) && item.books && !item.books.length" class="book-row row items-center">

@@ -39,6 +39,7 @@ const componentOptions = {
         },
     },
 };
+export const baseListOptions = componentOptions;
 export default class BaseList {
     _options = componentOptions;
     _props = {
@@ -241,6 +242,14 @@ export default class BaseList {
             case 'titleClick':
                 this.selectTitle(event.book.title);
                 break;
+            //избранное
+            case 'favoriteAdd':
+                this.favoriteAdd(event.book);
+                break;
+            case 'favoriteRemove':
+                this.favoriteRemove(event.book);
+                break;
+
             case 'download':
             case 'copyLink':
             case 'readBook':
@@ -377,6 +386,34 @@ export default class BaseList {
             }
         } finally {
             seriesItem.seriesBookLoading = false;
+        }
+    }
+
+    //избранное
+    isFavorite(book) {
+        const uids = this.$store.state.favoriteUids;
+        if (!uids || typeof uids.has !== 'function')
+            return false;
+        return uids.has(book._uid);
+    }
+
+    async favoriteAdd(book) {
+        try {
+            await this.api.addFavorite(book._uid);
+            this.commit('addFavoriteUid', book._uid);
+            this.$root.notify.success('Добавлено в избранное');
+        } catch (e) {
+            this.$root.stdDialog.alert(e.message, 'Ошибка');
+        }
+    }
+
+    async favoriteRemove(book) {
+        try {
+            await this.api.removeFavorite(book._uid);
+            this.commit('removeFavoriteUid', book._uid);
+            this.$root.notify.success('Удалено из избранного');
+        } catch (e) {
+            this.$root.stdDialog.alert(e.message, 'Ошибка');
         }
     }
 

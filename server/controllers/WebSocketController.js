@@ -108,6 +108,14 @@ class WebSocketController {
                     await this.getBookAuthors(req, ws); break;
                 case 'get-author-bio':
                     await this.getAuthorBio(req, ws); break;
+                case 'get-favorites':
+                    await this.getFavorites(req, ws); break;
+                case 'get-favorite-uids':
+                    await this.getFavoriteUids(req, ws); break;
+                case 'add-favorite':
+                    await this.addFavorite(req, ws); break;
+                case 'remove-favorite':
+                    await this.removeFavorite(req, ws); break;
 
                 case 'get-inpx-file':
                     await this.getInpxFile(req, ws); break;
@@ -253,6 +261,35 @@ class WebSocketController {
         const bio = await this.webWorker.getAuthorBio(req.hash);
 
         this.send({bio}, req, ws);
+    }
+
+    async getFavorites(req, ws) {
+        const offset = parseInt(req.offset, 10) || 0;
+        const limit = parseInt(req.limit, 10) || 50;
+
+        const result = await this.webWorker.getFavorites(offset, limit);
+        this.send(result, req, ws);
+    }
+
+    async getFavoriteUids(req, ws) {
+        const result = await this.webWorker.getFavoriteUids();
+        this.send(result, req, ws);
+    }
+
+    async addFavorite(req, ws) {
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        await this.webWorker.addFavorite(req.bookUid);
+        this.send({success: true}, req, ws);
+    }
+
+    async removeFavorite(req, ws) {
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        await this.webWorker.removeFavorite(req.bookUid);
+        this.send({success: true}, req, ws);
     }
 
     async getInpxFile(req, ws) {

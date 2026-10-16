@@ -52,6 +52,7 @@ const stepBound = [
     76,  // jobStep = 9  (stats count)
     86,  // jobStep = 10 (reviews index)
     96,  // jobStep = 11 (authors index)
+    99,  // jobStep = 12 (clean favorites)
 ];
 
 const componentOptions = {
@@ -276,7 +277,23 @@ class Api {
     async getAuthorBio(hash) {
         return await this.request({action: 'get-author-bio', hash}, 30);
     }
-    
+
+    async getFavorites(offset = 0, limit = 50) {
+        return await this.request({action: 'get-favorites', offset, limit}, 60);
+    }
+
+    async getFavoriteUids() {
+        return await this.request({action: 'get-favorite-uids'}, 30);
+    }
+
+    async addFavorite(bookUid) {
+        return await this.request({action: 'add-favorite', bookUid});
+    }
+
+    async removeFavorite(bookUid) {
+        return await this.request({action: 'remove-favorite', bookUid});
+    }
+        
     async getConfig() {
         return await this.request({action: 'get-config'});
     }

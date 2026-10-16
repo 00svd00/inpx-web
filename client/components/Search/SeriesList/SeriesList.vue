@@ -39,7 +39,9 @@
                 <div v-if="item.showAllBooks" class="book-row column">
                     <BookView
                         v-for="seriesBook in item.allBooks" :key="seriesBook.id"
-                        :book="seriesBook" 
+                        :book="seriesBook"
+                        favorite-action="add"
+                        :is-favorite="isFavorite(seriesBook)"
                         mode="series"
                         :genre-map="genreMap" :show-read-link="showReadLink"
                         :title-color="isFoundSeriesBook(item, seriesBook) ? 'text-blue-10' : 'text-red'"
@@ -49,7 +51,13 @@
                 <div v-else class="book-row column">
                     <BookView 
                         v-for="seriesBook in item.books" :key="seriesBook.key"                        
-                        :book="seriesBook" mode="series" :genre-map="genreMap" :show-read-link="showReadLink" @book-event="bookEvent"
+                        :book="seriesBook"
+                        favorite-action="add"
+                        :is-favorite="isFavorite(seriesBook)" 
+                        mode="series"
+                        :genre-map="genreMap"
+                        :show-read-link="showReadLink"
+                        @book-event="bookEvent"
                     />
                 </div>
 
