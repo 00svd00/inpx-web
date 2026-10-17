@@ -105,6 +105,8 @@ class WebSocketController {
                     await this.getBookInfo(req, ws); break;
                 case 'get-book-reviews':
                     await this.getBookReviews(req, ws); break;
+                case 'get-review-link':
+                    await this.getReviewLink(req, ws); break;
                 case 'get-book-authors':
                     await this.getBookAuthors(req, ws); break;
                 case 'get-author-bio':
@@ -253,6 +255,17 @@ class WebSocketController {
             throw new Error(`bookUid is empty`);
 
         const result = await this.webWorker.getBookReviews(req.bookUid);
+
+        this.send(result, req, ws);
+    }
+    
+    async getReviewLink(req, ws) {
+        if (!this.config.allowRemoteLib)
+            throw new Error('Remote lib access disabled');
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        const result = await this.webWorker.getReviewLink(req.bookUid);
 
         this.send(result, req, ws);
     }

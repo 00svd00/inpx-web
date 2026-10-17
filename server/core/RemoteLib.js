@@ -171,32 +171,51 @@ class RemoteLib {
         }
     }
 
+    // Скачивает файл с поставщика по прямой ссылке link (из wsRequest).
+    // Без try/catch — ошибки летят в обёртку (downloadBook/downloadReview/...).
+    async downloadRemote(link, localPath) {
+        if (!link)
+            throw new Error('no link');
+
+        // basePath: за nginx с proxy_pass .../ (link без префикса)
+        let linkPath = link;
+        if (this.remoteBasePath
+            && linkPath !== this.remoteBasePath
+            && !linkPath.startsWith(this.remoteBasePath + '/')) {
+            linkPath = this.remoteBasePath + (linkPath.startsWith('/') ? linkPath : '/' + linkPath);
+        }
+
+        const url = `${this.remoteHost}${linkPath}`;
+        const buf = await this.down.load(url, {decompress: false});
+
+        await fs.ensureDir(path.dirname(localPath));
+        await fs.writeFile(localPath, buf);
+
+        return localPath;
+    }
+
     async downloadBook(bookUid) {
         try {
-            const response = await await this.wsRequest({action: 'get-book-link', bookUid});
+            const response = await this.wsRequest({action: 'get-book-link', bookUid});
             const link = response.link;
-
-            // если link не содержит basePath (за nginx с proxy_pass .../),
-            // добавляем его; иначе используем link как есть
-            let linkPath = link;
-            if (this.remoteBasePath
-                && linkPath !== this.remoteBasePath
-                && !linkPath.startsWith(this.remoteBasePath + '/')) {
-                linkPath = this.remoteBasePath + (linkPath.startsWith('/') ? linkPath : '/' + linkPath);
-            }
-
-            const url = `${this.remoteHost}${linkPath}`;; 
-
-            const buf = await this.down.load(url, {decompress: false});
-
             const hash = path.basename(link);
-            const publicPath = `${this.config.bookDir}/${hash}`;
-            
-            await fs.writeFile(publicPath, buf);
-
-            return path.basename(link);
+            await this.downloadRemote(link, `${this.config.bookDir}/${hash}`);
+            return hash;
         } catch (e) {
             log(LM_ERR, `RemoteLib.downloadBook: ${e.message}`);
+            throw new Error('502 Bad Gateway');
+        }
+    }
+
+    async downloadReview(bookUid) {
+        try {
+            const response = await this.wsRequest({action: 'get-review-link', bookUid});
+            const link = response.link;
+            const hash = path.basename(link, '.review');
+            await this.downloadRemote(link, `${this.config.bookDir}/${hash}.review`);
+            return hash;
+        } catch (e) {
+            log(LM_ERR, `RemoteLib.downloadReview: ${e.message}`);
             throw new Error('502 Bad Gateway');
         }
     }

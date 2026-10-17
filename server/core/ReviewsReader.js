@@ -1,4 +1,6 @@
 const path = require('path');
+const fs = require('fs-extra');
+const zlib = require('zlib');
 
 const SevenZipHelper = require('./SevenZipHelper');
 
@@ -6,12 +8,9 @@ class ReviewsReader {
     constructor(config, db) {
         this.config = config;
         this.db = db;
-        this.reviewsDir = path.join(config.libDir, 'etc', 'reviews');
+        this.reviewsDir = path.join(config.libDir || '', 'etc', 'reviews');
         this.archive = new SevenZipHelper();
-        this.cache = new Map();
-        this.cacheMaxSize = 100;
-        this.cacheMaxReviews = 5000;
-        this.cacheReviewsCount = 0;
+        this.bookDir = config.bookDir;
     }
 
     // только счётчики, без открытия 7z — дёшево
@@ -33,19 +32,17 @@ class ReviewsReader {
         };
     }
 
-    async read(folder, file) {
+    // hash — <hash> книги (sha256 содержимого), для имени файла public-files/book/<hash>.review
+    async read(folder, file, hash) {
         folder = folder.replace(/\.zip$/i, '.7z');
         const key = `${folder}#${file}`;
-
-        if (this.cache.has(key)) {
-            return this.cache.get(key);
-        }
 
         const result = {
             declaredCount: 0,
             sum: 0,
             foundCount: 0,
             reviews: [],
+            months: [],
         };
 
         const rows = await this.db.select({
@@ -53,17 +50,38 @@ class ReviewsReader {
             where: `@@hash('_uid', ${this.db.esc(key)})`,
         });
 
-        if (!rows.length) {
-            this._cachePut(key, result);
+        if (!rows.length)
             return result;
-        }
 
         const rec = rows[0];
         result.declaredCount = rec.declaredCount || 0;
         result.sum = rec.sum || 0;
+        result.months = rec.months || [];
 
-        const months = rec.months || [];
-        for (const month of months) {
+        // 1) кэш на диске
+        const cacheFile = hash ? path.join(this.bookDir, `${hash}.review`) : '';
+        if (cacheFile && await fs.pathExists(cacheFile)) {
+            try {
+                const cached = JSON.parse(zlib.gunzipSync(await fs.readFile(cacheFile)).toString('utf8'));
+                const sameMonths = Array.isArray(cached.months)
+                    && cached.months.length === result.months.length
+                    && cached.months.every((m, i) => m === result.months[i]);
+                if (cached && Array.isArray(cached.reviews) && sameMonths) {
+                    cached.declaredCount = result.declaredCount;
+                    cached.sum = result.sum;
+                    return cached;
+                }
+                await fs.remove(cacheFile);
+            } catch (e) {
+                try { await fs.remove(cacheFile); } catch (e2) {}
+            }
+        }
+
+        // 2) архивы — только если есть libDir (поставщик/сингл)
+        if (!this.config.libDir)
+            return result;
+
+        for (const month of result.months) {
             const archivePath = path.join(this.reviewsDir, `${month}.7z`);
             try {
                 const buf = await this.archive.extract(archivePath, key);
@@ -83,29 +101,23 @@ class ReviewsReader {
 
         result.foundCount = result.reviews.length;
 
-        this._cachePut(key, result);
+        // 3) записать кэш на диск (атомарно: tmp + move)
+        if (cacheFile) {
+            try {
+                await fs.ensureDir(this.bookDir);
+                const tmpFile = `${cacheFile}.tmp`;
+                await fs.writeFile(tmpFile, zlib.gzipSync(JSON.stringify(result)));
+                await fs.move(tmpFile, cacheFile, {overwrite: true});
+            } catch (e) {
+                // не критично
+            }
+        }
+
         return result;
     }
 
-    _cachePut(key, value) {
-        const reviewsCount = value.reviews ? value.reviews.length : 0;
-
-        while (this.cache.size > 0 &&
-               (this.cache.size >= this.cacheMaxSize ||
-                this.cacheReviewsCount + reviewsCount > this.cacheMaxReviews)) {
-            const firstKey = this.cache.keys().next().value;
-            const firstVal = this.cache.get(firstKey);
-            this.cacheReviewsCount -= (firstVal.reviews ? firstVal.reviews.length : 0);
-            this.cache.delete(firstKey);
-        }
-
-        this.cache.set(key, value);
-        this.cacheReviewsCount += reviewsCount;
-    }
-
     clearCache() {
-        this.cache.clear();
-        this.cacheReviewsCount = 0;
+        // кэш на диске чистится периодической чисткой bookDir (periodicCleanDir)
     }
 }
 

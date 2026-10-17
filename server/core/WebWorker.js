@@ -754,30 +754,50 @@ class WebWorker {
             throw e;
         }
     }
-
-    async getBookReviews(bookUid) {
+    
+    async materializeReviews(bookUid) {
         this.checkMyState();
-
         if (!this.reviewsReader)
             throw new Error('reviews_disabled');
 
-        // найдём книгу
-        const bookRows = await this.db.select({
-            table: 'book',
-            where: `@@hash('_uid', ${this.db.esc(bookUid)})`,
-        });
-
+        const bookRows = await this.db.select({table: 'book', where: `@@hash('_uid', ${this.db.esc(bookUid)})`});
         if (!bookRows.length)
             throw new Error('404 Книга не найдена');
-
         const book = bookRows[0];
         const folder = book.folder;
         const file = `${book.file}.${book.ext}`;
 
+        let hash = '';
+        const fhRows = await this.db.select({table: 'file_hash', where: `@@id(${this.db.esc(bookUid)})`});
+        if (fhRows.length)
+            hash = fhRows[0].hash;
 
-        return await this.reviewsReader.read(folder, file);
+        if (this.remoteLib) {
+            const reviewFile = hash ? `${this.config.bookDir}/${hash}.review` : '';
+            if (!hash || !await fs.pathExists(reviewFile))
+                hash = await this.remoteLib.downloadReview(bookUid);
+        } else if (!hash) {
+            const bookInfo = await this.getBookLink(bookUid);
+            hash = path.basename(bookInfo.link);
+        }
+
+        const result = await this.reviewsReader.read(folder, file, hash);
+        return {hash, result};
     }
-    
+
+    async getBookReviews(bookUid) {
+        const {result} = await this.materializeReviews(bookUid);
+        return result;
+    }
+
+    async getReviewLink(bookUid) {
+        const {hash} = await this.materializeReviews(bookUid);
+        const cacheFile = `${this.config.bookDir}/${hash}.review`;
+        if (!await fs.pathExists(cacheFile))
+            throw new Error('404 Рецензии не найдены');
+        return {link: `${this.config.bookPathStatic}/${hash}.review`};
+    }
+
     async getBookReviewsCount(bookUid) {
         this.checkMyState();
 

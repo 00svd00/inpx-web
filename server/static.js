@@ -259,7 +259,16 @@ module.exports = (app, config) => {
     });
 
     //иначе просто отдаем запрошенный файл из /public-files
-    app.use(config.bookPathStatic, express.static(config.bookDir));
+    app.use(config.bookPathStatic, express.static(config.bookDir, {
+        setHeaders(res, filePath) {
+            const name = path.basename(filePath);
+            if (name.endsWith('.review')) {
+                res.set('Content-Type', 'application/json; charset=utf-8');
+                res.set('Content-Encoding', 'gzip');
+                res.set('Cache-Control', 'no-cache');
+            }
+        },
+    }));
 
     if (config.rootPathStatic) {
         //подмена rootPath в файлах статики WebApp при необходимости
