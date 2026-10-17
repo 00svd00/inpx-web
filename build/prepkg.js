@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { execSync } = require('child_process');
+const crypto = require('crypto');
 
 const showdown = require('showdown');
 
@@ -33,7 +34,24 @@ async function build() {
         execSync(`zip -r ${zipFile} .`, {cwd: publicDir, stdio: 'inherit'});
 
         const data = (await fs.readFile(zipFile)).toString('base64');
-        await fs.writeFile(jsonFile, JSON.stringify({data}));
+
+        // хеш содержимого zip: другая сборка -> другой хеш -> пересоздаём public
+        const hash = crypto.createHash('sha256').update(data).digest('hex');
+
+        // верхнеуровневые элементы сборки (файлы и каталоги).
+        // version.txt пишется в рантайме (см. createWebApp.js) — в zip его нет,
+        // .manifest.json — служебный маркер, тоже исключаем.
+        const entries = (await fs.readdir(publicDir))
+            .filter(n => n !== 'version.txt' && n !== '.manifest.json')
+            .sort();
+
+        const manifest = {
+            version: require('../package.json').version,
+            hash,
+            entries,
+        };
+
+        await fs.writeFile(jsonFile, JSON.stringify({data, manifest}));
     } else {
         throw new Error(`publicDir: ${publicDir} does not exist`);
     }

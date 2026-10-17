@@ -275,11 +275,18 @@ module.exports = (app, config) => {
                     const reqFile = `${config.publicDir}${reqPath}`;
                     const flagFile = `${reqFile}.replaced`;
 
-                    if (!await fs.pathExists(flagFile) && await fs.pathExists(reqFile)) {
+                    let replaced = false;
+                    try {
+                        replaced = (await fs.readFile(flagFile, 'utf8')) === config.rootPathStatic;
+                    } catch (e) {
+                        replaced = false;
+                    }
+
+                    if (!replaced && await fs.pathExists(reqFile)) {
                         const content = await fs.readFile(reqFile, 'utf8');
                         const re = new RegExp(`/${webAppDir}`, 'g');
                         await fs.writeFile(reqFile, content.replace(re, `${config.rootPathStatic}/${webAppDir}`));
-                        await fs.writeFile(flagFile, '');
+                        await fs.writeFile(flagFile, config.rootPathStatic);
                     }
                 }
             } catch(e) {
