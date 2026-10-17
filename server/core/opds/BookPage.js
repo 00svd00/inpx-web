@@ -131,43 +131,6 @@ class BookPage extends BasePage {
         return info;
     }
 
-    htmlReviews(reviews, bookUid) {
-        const maxShow = 3;
-        const maxTextLen = 500;
-
-        let result = `<h2>Рецензии (${reviews.foundCount})</h2>`;
-        if (reviews.declaredCount && reviews.sum) {
-            const avg = (reviews.sum / reviews.declaredCount).toFixed(1);
-            result += `<p>Оценок: ${reviews.declaredCount}, средняя: ${avg}</p>`;
-        }
-
-        if (!reviews.reviews.length) {
-            result += `<p>Тексты рецензий не найдены.</p>`;
-            return result;
-        }
-
-        const list = reviews.reviews.slice(0, maxShow);
-        for (const r of list) {
-            let text = (r.text || '').replace(/<br\s*\/?>/gi, '\n');
-            text = text.replace(/<[^>]+>/g, '');
-
-            if (text.length > maxTextLen)
-                text = text.substring(0, maxTextLen) + '...';
-
-            text = this.escape(text).replace(/\n/g, '<br/>');
-
-            const name = r.name ? this.escape(r.name) : 'Аноним';
-            const time = r.time ? this.escape(r.time) : '';
-
-            result += `<p><b>${name}</b>${time ? ` — ${time}` : ''}</p>`;
-            result += `<p>${text}</p>`;
-        }
-
-        if (reviews.reviews.length > maxShow)
-            result += `<p>Показано ${maxShow} из ${reviews.reviews.length}.</p>`;
-
-        return result;
-    }
     async body(req) {
         const result = {};
 
@@ -265,17 +228,6 @@ class BookPage extends BasePage {
                     }
                 }
 
-                // рецензии: превью (дорого, только если включено)
-                if (reviewsCount && reviewsCount.declaredCount && this.config.reviewsInOpds) {
-                    try {
-                        const reviewsData = await this.webWorker.getBookReviews(bookUid);
-                        if (reviewsData && reviewsData.declaredCount)
-                            info += this.htmlReviews(reviewsData, bookUid);
-                    } catch (e) {
-                        // пропускаем
-                    }
-                }
-
                 content = `${ann}${info}`;
                 if (content) {
                     e.content = {
@@ -291,11 +243,15 @@ class BookPage extends BasePage {
                 // рецензии — ссылка на OPDS-каталог (дёшево)
                 if (reviewsCount && reviewsCount.declaredCount) {
                     const reviewsHref = `${this.opdsRoot}/book/reviews?uid=${encodeURIComponent(bookUid)}`;
-                    const reviewsTitle = `Рецензии (${reviewsCount.declaredCount} оценок)`;
+                    let reviewsTitle = `Рецензии(${reviewsCount.declaredCount} оценок)`;
+                    if (reviewsCount.sum) {
+                        const avg = (reviewsCount.sum / reviewsCount.declaredCount).toFixed(1);
+                        reviewsTitle = `Рецензии(${reviewsCount.declaredCount} оценок, средняя ${avg})`;
+                    }
 
                     e.link.push(this.makeLink({
                         href: reviewsHref,
-                        rel: 'alternate',
+                        rel: 'related',
                         type: 'application/atom+xml;profile=opds-catalog',
                         title: reviewsTitle,
                     }));
@@ -311,7 +267,7 @@ class BookPage extends BasePage {
                             const authorsTitle = `Об авторах (${found.length})`;
                             e.link.push(this.makeLink({
                                 href: authorsHref,
-                                rel: 'alternate',
+                                rel: 'related',
                                 type: 'application/atom+xml;profile=opds-catalog',
                                 title: authorsTitle,
                             }));

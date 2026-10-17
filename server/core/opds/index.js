@@ -7,6 +7,7 @@ const TitlePage = require('./TitlePage');
 const GenrePage = require('./GenrePage');
 const BookPage = require('./BookPage');
 const BookReviewsPage = require('./BookReviewsPage');
+const BookAddonsPage = require('./BookAddonsPage');
 const FavoritesPage = require('./FavoritesPage');
 
 const BookAuthorsPage = require('./BookAuthorsPage'); //биографии авторов
@@ -31,6 +32,7 @@ module.exports = function(app, config) {
     const genre = new GenrePage(config);
     const book = new BookPage(config);
     const bookReviews = new BookReviewsPage(config);
+    const bookAddons = new BookAddonsPage(config);
     const favorites = new FavoritesPage(config);
 
     const bookAuthors = new BookAuthorsPage(config);
@@ -39,6 +41,22 @@ module.exports = function(app, config) {
     const search = new SearchPage(config);
     const searchHelp = new SearchHelpPage(config);
 
+    // диспетчер для /book: при opdsBookAddonsInCard=false и наличии доп. материалов
+    // отдаём промежуточный каталог, иначе — обычную карточку книги.
+    // direct=1 жёстко форсирует карточку (используется из BookAddonsPage).
+    const bookDispatch = {
+        async body(req, res) {
+            if (config.opdsBookAddonsInCard || req.query.direct)
+                return book.body(req, res);
+
+            const hasAddons = await bookAddons.hasAddons(req.query.uid);
+            if (!hasAddons)
+                return book.body(req, res);
+
+            return bookAddons.body(req, res);
+        }
+    };
+
     const routes = [
         ['', root],
         ['/root', root],
@@ -46,7 +64,8 @@ module.exports = function(app, config) {
         ['/series', series],
         ['/title', title],
         ['/genre', genre],
-        ['/book', book],
+        ['/book', bookDispatch],
+        ['/book/addons', bookAddons],
         ['/book/reviews', bookReviews],
         ['/favorites', favorites],
         ['/book/authors', bookAuthors],
@@ -100,4 +119,3 @@ module.exports = function(app, config) {
     //tolino и другие читалки проверяют каталог методом POST: без этого они получают 404 и не идут дальше
     app.post(opdsPaths, opds);
 };
-

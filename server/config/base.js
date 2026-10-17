@@ -47,10 +47,11 @@ module.exports = {
     lowMemoryMode: false,
     fullOptimization: false,
     reviewsEnabled: true,   // включает показ рецензий, добавляет вкладку рецензий и ссылку на рецензии в OPDS карточку книги
-    reviewsInOpds: false,   // показывать превью 3 рецензий в OPDS-карточке книги (дорого: открывает 7z)
     authorsBioEnabled: true,   // включает показ биографий авторов и ссылку «Об авторах» в OPDS-карточке книги
-
-    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'reviewsInOpds', 'authorsBioEnabled', 'rootPathStatic', 'favorites'],
+    opdsBookAddonsInCard: true, // true  — ссылки на рецензии/биографии прямо в карточке книги (rel="related");
+    //                             false — вместо карточки отдаём промежуточный каталог, первая ссылка ведёт на карточку,
+    //                             остальные — на рецензии/биографии. Если доп. материалов нет — отдаём карточку как обычно.
+    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'authorsBioEnabled', 'opdsBookAddonsInCard', 'rootPathStatic', 'favorites'],
 
     allowRemoteLib: false,
     remoteLib: false,
@@ -100,4 +101,3 @@ module.exports = {
         showNewReleaseAvailable: true,
     },
 };
-

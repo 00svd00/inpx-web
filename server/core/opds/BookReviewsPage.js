@@ -8,7 +8,7 @@ class BookReviewsPage extends BasePage {
         this.title = 'Рецензии';
     }
 
-    renderReview(r) {
+    renderReviewHtml(r) {
         let text = (r.text || '').replace(/<br\s*\/?>/gi, '\n');
         text = text.replace(/<[^>]+>/g, '');
         text = this.escape(text).replace(/\n/g, '<br/>');
@@ -17,6 +17,12 @@ class BookReviewsPage extends BasePage {
         const time = r.time ? this.escape(r.time) : '';
 
         return `<p><b>${name}</b>${time ? ` — ${time}` : ''}</p><p>${text}</p>`;
+    }
+
+    reviewTitle(r, index) {
+        const name = r.name || 'Аноним';
+        const time = r.time ? ` (${r.time})` : '';
+        return `Рецензия #${index + 1} от ${name}${time}`;
     }
 
     async body(req) {
@@ -36,73 +42,97 @@ class BookReviewsPage extends BasePage {
             this.acqLink({rel: 'self', href: selfHref, hrefAsIs: true}),
         ];
 
-        let content = '';
+        const entries = [];
         let bookInfo = null;
         let pageTitle = 'Рецензии';
 
         if (!bookUid) {
-            content = '<p>Не указан идентификатор книги.</p>';
+            entries.push(
+                this.makeEntry({
+                    id: 'no-uid',
+                    title: '[Не указан идентификатор книги]',
+                    link: this.navLink({href: '/root'}),
+                })
+            );
         } else if (!this.config.reviewsEnabled) {
-            content = '<p>Рецензии недоступны.</p>';
+            entries.push(
+                this.makeEntry({
+                    id: 'reviews-disabled',
+                    title: '[Рецензии недоступны]',
+                    link: this.navLink({href: `/book?uid=${encodeURIComponent(bookUid)}&direct=1`}),
+                })
+            );
         } else {
-            // информация о книге (для acquisition и заголовка)
+            // информация о книге (для заголовка фида и fallback acquisition)
             try {
                 const res = await this.webWorker.getBookInfo(bookUid);
                 bookInfo = res.bookInfo;
-                if (bookInfo && bookInfo.book.title)
-                    pageTitle = `Рецензии: ${bookInfo.book.title}`;
             } catch (e) {
                 bookInfo = null;
             }
 
+            const bookTitle = (bookInfo && bookInfo.book.title) || '';
+
             // рецензии
+            let reviews = null;
             try {
-                const reviews = await this.webWorker.getBookReviews(bookUid);
-
-                content = `<h2>Рецензии (${reviews.foundCount || 0})</h2>`;
-                if (reviews.declaredCount && reviews.sum) {
-                    const avg = (reviews.sum / reviews.declaredCount).toFixed(1);
-                    content += `<p>Оценок: ${reviews.declaredCount}, средняя: ${avg}</p>`;
-                }
-
-                if (!reviews.reviews.length) {
-                    content += '<p>Тексты рецензий не найдены.</p>';
-                } else {
-                    for (const r of reviews.reviews)
-                        content += this.renderReview(r);
-                }
+                reviews = await this.webWorker.getBookReviews(bookUid);
             } catch (e) {
-                content = `<p>Ошибка: ${this.escape(e.message)}</p>`;
+                reviews = null;
+            }
+
+            // title фида со сводкой
+            if (bookTitle) {
+                pageTitle = `Рецензии: ${bookTitle}`;
+            }
+
+            const list = (reviews && reviews.reviews) ? reviews.reviews : [];
+
+            if (!list.length) {
+                entries.push(
+                    this.makeEntry({
+                        id: `reviews-empty-${bookUid}`,
+                        title: '[Тексты рецензий не найдены]',
+                        link: this.navLink({href: `/book?uid=${encodeURIComponent(bookUid)}&direct=1`}),
+                    })
+                );
+            } else {
+                const ext = (bookInfo && bookInfo.book.ext) || 'fb2';
+                const bookLink = bookInfo ? bookInfo.link : null;
+
+                for (let i = 0; i < list.length; i++) {
+                    const r = list[i];
+
+                    const e = this.makeEntry({
+                        id: `review-${bookUid}-${i}`,
+                        title: this.reviewTitle(r, i),
+                        content: {
+                            '*ATTRS': {type: 'text/html'},
+                            '*TEXT': this.escape(this.renderReviewHtml(r)),
+                        },
+                    });
+
+                    e.link = [];
+
+                    // fallback acquisition: некоторые читалки не показывают entry без acquisition.
+                    // Ссылка ведёт на скачивание книги, к которой относится рецензия.
+                    if (bookLink) {
+                        e.link.push(this.downLink({
+                            href: bookLink,
+                            type: `application/${ext}`,
+                            title: `Скачать «${bookTitle}» (${ext})`,
+                        }));
+                    }
+
+                    // навигация обратно к карточке книги
+                    e.link.push(this.navLink({href: `/book?uid=${encodeURIComponent(bookUid)}&direct=1`}));
+
+                    entries.push(e);
+                }
             }
         }
 
-        const entry = this.makeEntry({
-            id: 'reviews',
-            title: pageTitle,
-            content: {
-                '*ATTRS': {type: 'text/html'},
-                '*TEXT': this.escape(content),
-            },
-        });
-
-        // acquisition — ссылка на скачивание книги (если знаем)
-        if (bookInfo) {
-            const ext = bookInfo.book.ext || 'fb2';
-            entry.link = [
-                this.downLink({
-                    href: bookInfo.link,
-                    type: `application/${ext}`,
-                    title: `Скачать «${bookInfo.book.title || ''}» (${ext})`,
-                }),
-                this.downLink({
-                    href: `${bookInfo.link}/zip`,
-                    type: `application/${ext}+zip`,
-                    title: `Скачать «${bookInfo.book.title || ''}» (${ext}.zip)`,
-                }),
-            ];
-        }
-
-        result.entry = [entry];
+        result.entry = entries;
 
         // временно переопределяем this.title для <feed><title>
         const oldTitle = this.title;
