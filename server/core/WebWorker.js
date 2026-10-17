@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs-extra');
 const _ = require('lodash');
 const iconv = require('iconv-lite');
+const zlib = require('zlib');
+const crypto = require('crypto');
 
 const ZipReader = require('./ZipReader');
 const WorkerState = require('./WorkerState');//singleton
@@ -144,7 +146,7 @@ class WebWorker {
                     log(`  processed ${state.recsLoaded} records`);
                 if (state.job)
                     log(`  ${state.job}`);
-            });
+            }, {indexesFromDump: !!this.remoteLib});
 
             log('Searcher DB successfully created');
         } finally {
@@ -186,6 +188,36 @@ class WebWorker {
             //удалим БД если нужно
             if (config.recreateDb || recreate)
                 await fs.remove(dbPath);
+            
+            // потребитель: обеспечить наличие валидных дампов индексов
+            // (нужны для createDb, а также для случая "фича включена после создания БД")
+            if (this.remoteLib) {
+                const needCreate = !await fs.pathExists(dbPath);
+                let needDownload = needCreate; // нет БД — нужны дампы
+
+                if (!needDownload) {
+                    // БД есть — проверим целостность локальных дампов
+                    const reviewsOk = await this.remoteLib.isDumpValid(config, 'reviews_index.json.gz');
+                    const authorsOk = await this.remoteLib.isDumpValid(config, 'authors_info.json.gz');
+                    needDownload = !reviewsOk || !authorsOk;
+                }
+
+                if (needDownload) {
+                    try {
+                        const dumps = await this.remoteLib.downloadIndexes(config);
+                        config.reviewsDumpFile = dumps.reviews_index || '';
+                        config.authorsDumpFile = dumps.authors_info || '';
+                    } catch (e) {
+                        log(LM_WARN, `downloadIndexes failed: ${e.message}`);
+                        config.reviewsDumpFile = '';
+                        config.authorsDumpFile = '';
+                    }
+                } else {
+                    // дампы целые — используем локальные
+                    config.reviewsDumpFile = path.join(config.dataDir, 'reviews_index.json.gz');
+                    config.authorsDumpFile = path.join(config.dataDir, 'authors_info.json.gz');
+                }
+            }
 
             //пересоздаем БД из INPX если нужно
             if (!await fs.pathExists(dbPath)) {
@@ -238,8 +270,26 @@ class WebWorker {
 
             log('Searcher DB ready');
 
-            // рецензии — после перехода в normal
             const dbConfig = await this.dbConfig();
+            // потребитель: если фича включена в конфиге, а индекса в БД нет — пересоздать
+            if (this.remoteLib && iteration < 1) {
+                const stats = dbConfig.stats || {};
+                const providerIndexes = (this.remoteLib.providerFeatures && Array.isArray(this.remoteLib.providerFeatures.indexes))
+                    ? this.remoteLib.providerFeatures.indexes
+                    : [];
+                const expectReviews = !!(config.reviewsEnabled && providerIndexes.includes('reviews_index'));
+                const expectAuthors = !!(config.authorsBioEnabled && providerIndexes.includes('authors_info'));
+
+                if (expectReviews !== !!stats.reviewsEnabled || expectAuthors !== !!stats.authorsBioEnabled) {
+                    log(`DB indexes mismatch (reviews: ${!!stats.reviewsEnabled} -> ${expectReviews}, authors: ${!!stats.authorsBioEnabled} -> ${expectAuthors}), recreating DB`);
+                    await this.closeDb();
+                    if (this.dbSearcher) { await this.dbSearcher.close(); this.dbSearcher = null; }
+                    await this.loadOrCreateDb(true, iteration + 1);
+                    return;
+                }
+            }
+
+            // рецензии — после перехода в normal
             const reviewsEnabled = dbConfig.stats && dbConfig.stats.reviewsEnabled;
 
             if (reviewsEnabled) {
@@ -876,6 +926,39 @@ class WebWorker {
 
         const favorites = new Favorites(this.config);
         await favorites.remove(bookUid);
+    }
+
+    async dumpIndex(table) {
+        this.checkMyState();
+        if (!this.db)
+            throw new Error('db_not_ready');
+
+        const dbConfig = await this.dbConfig();
+        const stats = (dbConfig && dbConfig.stats) || {};
+        if (table === 'reviews_index' && !stats.reviewsEnabled)
+            return {data: null, hash: null};
+        if (table === 'authors_info' && !stats.authorsBioEnabled)
+            return {data: null, hash: null};
+
+        const db = this.db;
+        if (!db.wwCache.indexDumps)
+            db.wwCache.indexDumps = {};
+        const cached = db.wwCache.indexDumps[table];
+
+        // кэш hash/буфера: сбрасывается вместе с db при пересоздании БД
+        if (cached)
+            return {data: cached.buf, hash: cached.hash};
+        const rows = await db.select({table});
+        const cols = {};
+        for (const key of Object.keys(rows[0] || {}))
+            cols[key] = rows.map(r => r[key]);
+        const json = JSON.stringify(cols);
+        const buf = zlib.gzipSync(Buffer.from(json, 'utf8'));
+        const hash = crypto.createHash('sha256').update(buf).digest('hex');
+
+        db.wwCache.indexDumps[table] = {buf, hash};
+
+        return {data: buf, hash};
     }
 
     async getInpxFile(params) {

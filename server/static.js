@@ -298,5 +298,14 @@ module.exports = (app, config) => {
     }
 
     //статика файлов WebApp
-    app.use(config.rootPathStatic, express.static(config.publicDir));
+    app.use(config.rootPathStatic, express.static(config.publicDir, {
+        setHeaders(res, filePath) {
+            const name = path.basename(filePath);
+            if (name === 'index.html' || name === 'version.txt') {
+                res.set('Cache-Control', 'no-cache');
+            } else if (/\.(js|css|woff2?|ttf|eot|png|jpe?g|gif|svg)$/.test(name)) {
+                res.set('Cache-Control', 'public, max-age=31536000, immutable');
+            }
+        },
+    }));
 };

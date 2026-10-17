@@ -3,6 +3,7 @@ const WebSocket = require ('ws');
 
 const WorkerState = require('../core/WorkerState');//singleton
 const WebWorker = require('../core/WebWorker');//singleton
+const { PROTOCOL_VERSION } = require('../core/Protocol');
 const log = new (require('../core/AppLogger'))().log;//singleton
 const utils = require('../core/utils');
 
@@ -119,6 +120,9 @@ class WebSocketController {
 
                 case 'get-inpx-file':
                     await this.getInpxFile(req, ws); break;
+                
+                case 'get-index':
+                    await this.getIndex(req, ws); break;
 
                 default:
                     throw new Error(`Action not found: ${req.action}`);
@@ -161,6 +165,14 @@ class WebSocketController {
         config.dbConfig = await this.webWorker.dbConfig();
         config.freeAccess = this.webAccess.freeAccess;
 
+        config.protocolVersion = PROTOCOL_VERSION;
+        config.features = {
+            reviewsEnabled: !!(config.dbConfig && config.dbConfig.stats && config.dbConfig.stats.reviewsEnabled),
+            authorsBioEnabled: !!(config.dbConfig && config.dbConfig.stats && config.dbConfig.stats.authorsBioEnabled),
+            indexes: [],
+        };
+        if (config.features.reviewsEnabled) config.features.indexes.push('reviews_index');
+        if (config.features.authorsBioEnabled) config.features.indexes.push('authors_info');
         this.send(config, req, ws);
     }
 
@@ -299,6 +311,33 @@ class WebSocketController {
         const result = await this.webWorker.getInpxFile(req);
 
         this.send(result, req, ws);
+    }
+
+    async getIndex(req, ws) {
+        if (!this.config.allowRemoteLib)
+            throw new Error('Remote lib access disabled');
+
+        const table = req.table;
+        if (!table)
+            throw new Error('table is empty');
+
+        const dbConfig = await this.webWorker.dbConfig();
+        const stats = (dbConfig && dbConfig.stats) || {};
+
+        const allowed = [];
+        if (stats.reviewsEnabled) allowed.push('reviews_index');
+        if (stats.authorsBioEnabled) allowed.push('authors_info');
+
+        if (!allowed.includes(table))
+            throw new Error(`unknown_index: ${table}`);
+        const res = await this.webWorker.dumpIndex(table);
+        if (res.data === null)
+            return this.send({data: null, hash: null}, req, ws);
+
+        if (req.hash && req.hash === res.hash)
+            return this.send({data: null, hash: res.hash}, req, ws);
+
+        this.send({data: res.data.toString('base64'), hash: res.hash}, req, ws);
     }
 
 }

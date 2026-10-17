@@ -1,5 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
+const zlib = require('zlib')
 const ReviewsIndexer = require('./ReviewsIndexer');
 const AuthorBioIndexer = require('./AuthorBioIndexer');
 const Favorites = require('./Favorites');
@@ -41,8 +42,9 @@ class DbCreator {
     }
 
     //процедура формировани БД несколько усложнена, в целях экономии памяти
-    async run(db, callback) {
+    async run(db, callback, options = {}) {
         const config = this.config;
+        const indexesFromDump = !!options.indexesFromDump;
 
         callback({jobStepCount: 5});
         callback({job: 'load inpx', jobMessage: 'Загрузка INPX', jobStep: 1, progress: 0});
@@ -463,7 +465,9 @@ class DbCreator {
 
         // -- рецензии ------------------------------------------
         let reviewsEnabled = false;
-        if (config.reviewsEnabled && config.libDir) {
+        if (indexesFromDump && config.reviewsDumpFile) {
+            reviewsEnabled = true;
+        } else if (config.reviewsEnabled && config.libDir) {
             const reviewsDir = path.join(config.libDir, 'etc', 'reviews');
             const additionalZip = path.join(reviewsDir, 'additional.zip');
             reviewsEnabled = await fs.pathExists(reviewsDir) && await fs.pathExists(additionalZip);
@@ -472,8 +476,12 @@ class DbCreator {
         if (reviewsEnabled) {
             callback({job: 'reviews index', jobMessage: 'Индексация рецензий', jobStep: 10, progress: 0});
 
-            const indexer = new ReviewsIndexer(config);
-            stats.reviewsCount = await indexer.build(db, (p) => callback(p));
+            if (indexesFromDump) {
+                stats.reviewsCount = await this.loadIndexFromDump(db, 'reviews_index', config.reviewsDumpFile, callback);
+            } else {
+                const indexer = new ReviewsIndexer(config);
+                stats.reviewsCount = await indexer.build(db, (p) => callback(p));
+            }
         } else {
             stats.reviewsCount = 0;
         }
@@ -482,7 +490,9 @@ class DbCreator {
 
         // -- авторы --------------------------------------------
         let authorsBioEnabled = false;
-        if (config.authorsBioEnabled && config.libDir) {
+        if (indexesFromDump && config.authorsDumpFile) {
+            authorsBioEnabled = true;
+        } else if (config.authorsBioEnabled && config.libDir) {
             const authorsDir = path.join(config.libDir, 'etc', 'authors');
             authorsBioEnabled = await fs.pathExists(authorsDir);
         }
@@ -490,8 +500,12 @@ class DbCreator {
         if (authorsBioEnabled) {
             callback({job: 'authors index', jobMessage: 'Индексация биографий', jobStep: 11, progress: 0});
 
-            const indexer = new AuthorBioIndexer(config);
-            stats.authorsBioCount = await indexer.build(db, (p) => callback(p));
+            if (indexesFromDump) {
+                stats.authorsBioCount = await this.loadIndexFromDump(db, 'authors_info', config.authorsDumpFile, callback);
+            } else {
+                const indexer = new AuthorBioIndexer(config);
+                stats.authorsBioCount = await indexer.build(db, (p) => callback(p));
+            }
         } else {
             stats.authorsBioCount = 0;
         }
@@ -730,6 +744,59 @@ class DbCreator {
         });
 
         countDone = true;
+    }
+
+    // загрузка дампа (columns+gzip) в БД — та же схема, что у ReviewsIndexer/AuthorBioIndexer
+    async loadIndexFromDump(db, table, gzFile, callback) {
+        const config = this.config;
+
+        const buf = await fs.readFile(gzFile);
+        const json = zlib.gunzipSync(buf).toString('utf8');
+        const cols = JSON.parse(json);
+
+        const keys = Object.keys(cols);
+        const len = keys.length ? cols[keys[0]].length : 0;
+
+        // восстановление rows из columns
+        const rows = new Array(len);
+        for (let i = 0; i < len; i++) {
+            const row = {};
+            for (const k of keys)
+                row[k] = cols[k][i];
+            rows[i] = row;
+        }
+
+        // та же схема, что в индексаторах: create без индекса, insert чанками, hash-индекс после
+        await db.create({
+            table,
+            cacheSize: (config.lowMemoryMode ? 5 : 500),
+        });
+
+        const chunkSize = 10000;
+        for (let i = 0; i < rows.length; i += chunkSize) {
+            const chunk = rows.slice(i, i + chunkSize);
+            await db.insert({table, rows: chunk});
+
+            if (config.lowMemoryMode) {
+                await db.freeMemory();
+                utils.freeMemory();
+            }
+
+            callback({progress: 0.9 + 0.1 * (i + chunkSize) / rows.length});
+        }
+
+        await db.create({
+            in: table,
+            hash: {field: '_uid', type: 'string', depth: 100, unique: true},
+        });
+
+        await db.close({table});
+        await db.freeMemory();
+        utils.freeMemory();
+
+        callback({progress: 1});
+
+        return rows.length;
     }
 }
 
