@@ -25,8 +25,7 @@ test('reviewsInOpds удалён (регресс-защита)', () => {
     assert.ok(!base.webConfigParams.includes('reviewsInOpds'));
 });
 
-test('latestReleaseLink/checkReleaseLink — TODO форк (не bookpauk)', () => {
-    // снапшот: пока смотрят на bookpauk — фиксируем, чтобы релиз не забыл поменять
-    assert.match(base.latestReleaseLink, /github\.com\/.+\/inpx-web\/releases\/latest$/);
-    assert.match(base.checkReleaseLink, /api\.github\.com\/repos\/.+\/inpx-web\/releases\/latest$/);
+test('latestReleaseLink/checkReleaseLink — указывают на форк (снапшот)', () => {
+    assert.strictEqual(base.latestReleaseLink, 'https://github.com/00svd00/inpx-web/releases/latest');
+    assert.strictEqual(base.checkReleaseLink, 'https://api.github.com/repos/00svd00/inpx-web/releases/latest');
 });
