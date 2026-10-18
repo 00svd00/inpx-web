@@ -219,6 +219,32 @@ class RemoteLib {
             throw new Error('502 Bad Gateway');
         }
     }
+
+    async downloadBio(hash) {
+        try {
+            const response = await this.wsRequest({action: 'get-bio-link', hash});
+            const link = response.link;
+            const fileName = path.basename(link);
+            await this.downloadRemote(link, `${this.config.authorDir}/${fileName}`);
+            return hash;
+        } catch (e) {
+            log(LM_ERR, `RemoteLib.downloadBio: ${e.message}`);
+            throw new Error('502 Bad Gateway');
+        }
+    }
+
+    async downloadPhoto(hash) {
+        try {
+            const response = await this.wsRequest({action: 'get-photo-link', hash});
+            const link = response.link;
+            const fileName = path.basename(link);   // <hash>.<ext> или <hash>.nophoto
+            await this.downloadRemote(link, `${this.config.authorDir}/${fileName}`);
+            return hash;
+        } catch (e) {
+            log(LM_ERR, `RemoteLib.downloadPhoto: ${e.message}`);
+            throw new Error('502 Bad Gateway');
+        }
+    }
 }
 
 module.exports = RemoteLib;

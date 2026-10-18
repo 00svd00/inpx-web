@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs-extra');
+const zlib = require('zlib');
 
 const SevenZipHelper = require('./SevenZipHelper');
 
@@ -8,15 +9,12 @@ class AuthorBioReader {
         this.config = config;
         this.db = db;
 
-        this.authorsDir = path.join(config.libDir, 'etc', 'authors');
+        this.authorsDir = path.join(config.libDir || '', 'etc', 'authors');
         this.picturesDir = path.join(this.authorsDir, 'pictures');
-        this.photoDir = this.photoDir = config.authorDir;
+        this.bioDir = config.authorDir;
+        this.photoDir = config.authorDir;
 
         this.archive = new SevenZipHelper();
-
-        this.bioCache = new Map();
-        this.bioCacheMax = 100;
-        this.noPhotoCache = new Set();
     }
 
     async getArchiveId(hash) {
@@ -33,44 +31,57 @@ class AuthorBioReader {
 
     // ---- био ------------------------------------------------------------
 
-    _bioCachePut(hash, value) {
-        if (this.bioCache.has(hash))
-            this.bioCache.delete(hash);
-
-        this.bioCache.set(hash, value);
-
-        while (this.bioCache.size > this.bioCacheMax) {
-            const firstKey = this.bioCache.keys().next().value;
-            this.bioCache.delete(firstKey);
-        }
-    }
-
     /**
-     * Дорого: открывает authors/<archiveId>.7z.
+     * Читает/создаёт public-files/author/<hash>.bio (gzip JSON {archiveId, html}).
      * Возвращает HTML биографии или null.
      */
     async getBio(hash) {
-        if (this.bioCache.has(hash))
-            return this.bioCache.get(hash);
-
         const archiveId = await this.getArchiveId(hash);
-        if (archiveId === null) {
-            this._bioCachePut(hash, null);
+        if (archiveId === null)
             return null;
+
+        const bioFile = path.join(this.bioDir, `${hash}.bio`);
+
+        // 1) кэш на диске
+        if (await fs.pathExists(bioFile)) {
+            try {
+                const cached = JSON.parse(zlib.gunzipSync(await fs.readFile(bioFile)).toString('utf8'));
+                if (cached && cached.archiveId === archiveId && typeof cached.html === 'string')
+                    return cached.html;
+                await fs.remove(bioFile);
+            } catch (e) {
+                try { await fs.remove(bioFile); } catch (e2) {}
+            }
         }
+
+        // 2) архивы — только если есть libDir (поставщик/сингл)
+        if (!this.config.libDir)
+            return null;
 
         const archivePath = path.join(this.authorsDir, `${archiveId}.7z`);
 
-        let bio = null;
+        let html = null;
         try {
             const buf = await this.archive.extract(archivePath, hash);
-            bio = buf.toString('utf8');
+            html = buf.toString('utf8');
         } catch (e) {
-            bio = null;
+            html = null;
         }
 
-        this._bioCachePut(hash, bio);
-        return bio;
+        if (html === null)
+            return null;
+
+        // 3) записать кэш на диск (атомарно: tmp + move)
+        try {
+            await fs.ensureDir(this.bioDir);
+            const tmpFile = `${bioFile}.tmp`;
+            await fs.writeFile(tmpFile, zlib.gzipSync(JSON.stringify({archiveId, html})));
+            await fs.move(tmpFile, bioFile, {overwrite: true});
+        } catch (e) {
+            // не критично
+        }
+
+        return html;
     }
 
     // ---- фото -----------------------------------------------------------
@@ -114,9 +125,18 @@ class AuthorBioReader {
         return null;
     }
 
+    async _writeNoPhoto(hash) {
+        try {
+            await fs.ensureDir(this.photoDir);
+            await fs.writeFile(path.join(this.photoDir, `${hash}.nophoto`), '');
+        } catch (e) {
+            // не критично
+        }
+    }
+
     /**
-     * Дорого при первом вызове (открывает pictures/<archiveId>.zip),
-     * дёшево при повторном (кеш на диске + noPhotoCache).
+     * Кэш на диске <hash>.<ext>; маркер <hash>.nophoto — «фото нет»
+     * (переживает рестарт, не перебирает архивы повторно).
      * Возвращает {path, ext} или null.
      */
     async getPhoto(hash) {
@@ -124,18 +144,23 @@ class AuthorBioReader {
         if (cached)
             return cached;
 
-        if (this.noPhotoCache.has(hash))
+        // негативный маркер (0 байт)
+        if (await fs.pathExists(path.join(this.photoDir, `${hash}.nophoto`)))
+            return null;
+
+        // потребитель: без libDir — только кэш/маркер (скачает через downloadPhoto)
+        if (!this.config.libDir)
             return null;
 
         const archiveId = await this.getArchiveId(hash);
         if (archiveId === null) {
-            this.noPhotoCache.add(hash);
+            await this._writeNoPhoto(hash);
             return null;
         }
 
         const archivePath = path.join(this.picturesDir, `${archiveId}.zip`);
         if (!await fs.pathExists(archivePath)) {
-            this.noPhotoCache.add(hash);
+            await this._writeNoPhoto(hash);
             return null;
         }
 
@@ -143,7 +168,7 @@ class AuthorBioReader {
         try {
             files = await this.archive.list(archivePath);
         } catch (e) {
-            this.noPhotoCache.add(hash);
+            await this._writeNoPhoto(hash);
             return null;
         }
 
@@ -153,7 +178,7 @@ class AuthorBioReader {
             .sort();
 
         if (!matched.length) {
-            this.noPhotoCache.add(hash);
+            await this._writeNoPhoto(hash);
             return null;
         }
 
@@ -166,8 +191,10 @@ class AuthorBioReader {
         try {
             const buf = await this.archive.extract(archivePath, entry);
             await fs.writeFile(outPath, buf);
+            // если был маркер — удалить
+            try { await fs.remove(path.join(this.photoDir, `${hash}.nophoto`)); } catch (e) {}
         } catch (e) {
-            this.noPhotoCache.add(hash);
+            await this._writeNoPhoto(hash);
             return null;
         }
 
@@ -179,8 +206,7 @@ class AuthorBioReader {
     }
 
     clearCache() {
-        this.bioCache.clear();
-        this.noPhotoCache.clear();
+        // кэш на диске чистится periodicCleanDir (authorDir)
     }
 }
 

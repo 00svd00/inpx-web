@@ -857,22 +857,68 @@ class WebWorker {
         return result;
     }
 
-    async getAuthorBio(hash) {
+    // материализует <hash>.bio и <hash>.<ext> (или <hash>.nophoto);
+    // потребитель скачивает у поставщика.
+    async materializeBio(hash) {
         this.checkMyState();
 
         if (!this.authorBioReader)
             throw new Error('authors_disabled');
 
-        return await this.authorBioReader.getBio(hash);
+        if (this.remoteLib) {
+            const bioFile = `${this.config.authorDir}/${hash}.bio`;
+            if (!await fs.pathExists(bioFile)) {
+                try { await this.remoteLib.downloadBio(hash); } catch (e) {}
+            }
+
+            const photoCached = await this.authorBioReader._findCachedPhoto(hash);
+            const noPhoto = await fs.pathExists(`${this.config.authorDir}/${hash}.nophoto`);
+            if (!photoCached && !noPhoto) {
+                try { await this.remoteLib.downloadPhoto(hash); } catch (e) {}
+            }
+        }
+
+        const bio = await this.authorBioReader.getBio(hash).catch(() => null);
+        const photo = await this.authorBioReader.getPhoto(hash).catch(() => null);
+
+        return {hash, bio, photo};
+    }
+
+    async getAuthorBio(hash) {
+        const {bio} = await this.materializeBio(hash);
+        return bio;
     }
 
     async getAuthorPhoto(hash) {
-        this.checkMyState();
+        const {photo} = await this.materializeBio(hash);
+        return photo;
+    }
 
+    // поставщик: материализует <hash>.bio и возвращает ссылку
+    async getBioLink(hash) {
+        this.checkMyState();
         if (!this.authorBioReader)
             throw new Error('authors_disabled');
 
-        return await this.authorBioReader.getPhoto(hash);
+        const bio = await this.authorBioReader.getBio(hash);
+        if (bio === null)
+            throw new Error('404 Биография не найдена');
+
+        return {link: `${this.config.rootPathStatic}/author/${hash}.bio`};
+    }
+
+    // поставщик: материализует <hash>.<ext> (или <hash>.nophoto) и возвращает ссылку
+    async getPhotoLink(hash) {
+        this.checkMyState();
+        if (!this.authorBioReader)
+            throw new Error('authors_disabled');
+
+        const photo = await this.authorBioReader.getPhoto(hash);
+        if (photo)
+            return {link: `${this.config.rootPathStatic}/author/${hash}${photo.ext}`};
+
+        // фото нет — getPhoto создал <hash>.nophoto; отдаём маркер
+        return {link: `${this.config.rootPathStatic}/author/${hash}.nophoto`};
     }
 
     getAuthorPhotoMime(ext) {

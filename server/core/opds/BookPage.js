@@ -220,7 +220,7 @@ class BookPage extends BasePage {
 
                 // рецензии: счётчики (дёшево)
                 let reviewsCount = null;
-                if (this.config.reviewsEnabled) {
+                if (this.config.opdsBookAddonsInCard && this.config.reviewsEnabled) {
                     try {
                         reviewsCount = await this.webWorker.getBookReviewsCount(bookUid);
                     } catch (e) {
@@ -241,7 +241,7 @@ class BookPage extends BasePage {
                 for (const [fileFormat, downHref] of Object.entries(formats))
                     e.link.push(this.downLink({href: downHref, type: `application/${fileFormat}`}));
                 // рецензии — ссылка на OPDS-каталог (дёшево)
-                if (reviewsCount && reviewsCount.declaredCount) {
+                if (this.config.opdsBookAddonsInCard && reviewsCount && reviewsCount.declaredCount) {
                     const reviewsHref = `${this.opdsRoot}/book/reviews?uid=${encodeURIComponent(bookUid)}`;
                     let reviewsTitle = `Рецензии(${reviewsCount.declaredCount} оценок)`;
                     if (reviewsCount.sum) {
@@ -258,7 +258,7 @@ class BookPage extends BasePage {
                 }
 
                 // авторы — ссылка на OPDS-каталог (дёшево, только db.select)
-                if (this.config.authorsBioEnabled) {
+                if (this.config.opdsBookAddonsInCard && this.config.authorsBioEnabled) {
                     try {
                         const authors = await this.webWorker.getBookAuthors(bookUid);
                         const found = authors.filter(a => a.found);

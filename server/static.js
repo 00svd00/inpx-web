@@ -269,6 +269,24 @@ module.exports = (app, config) => {
             }
         },
     }));
+    
+    // статика авторов: <hash>.bio (gzip HTML), <hash>.<ext> (фото), <hash>.nophoto (0 байт)
+    const authorPathStatic = `${config.rootPathStatic}/author`;
+    app.use(authorPathStatic, express.static(config.authorDir, {
+        setHeaders(res, filePath) {
+            const name = path.basename(filePath);
+            if (name.endsWith('.bio')) {
+                res.set('Content-Type', 'text/html; charset=utf-8');
+                res.set('Content-Encoding', 'gzip');
+                res.set('Cache-Control', 'no-cache');
+            } else if (name.endsWith('.nophoto')) {
+                res.set('Content-Type', 'application/octet-stream');
+                res.set('Cache-Control', 'no-cache');
+            } else if (/\.(jpe?g|png|gif|webp)$/i.test(name)) {
+                res.set('Cache-Control', 'public, max-age=604800');
+            }
+        },
+    }));
 
     if (config.rootPathStatic) {
         //подмена rootPath в файлах статики WebApp при необходимости

@@ -52,22 +52,24 @@ class BookAuthorsPage extends BasePage {
                     authors = [];
                 }
 
-                for (const author of authors) {
-                    if (!author.found)
-                        continue;
+                const found = authors.filter(a => a.found);
+                const limit = 5;
+                const results = [];
+                for (let i = 0; i < found.length; i += limit) {
+                    const chunk = found.slice(i, i + limit);
+                    const chunkRes = await Promise.all(chunk.map(async (author) => {
+                        let bio = null;
+                        try { bio = await this.webWorker.getAuthorBio(author.hash); } catch (e) { bio = null; }
+                        return {author, bio};
+                    }));
+                    results.push(...chunkRes);
+                }
 
+                for (const {author, bio} of results) {
                     const e = this.makeEntry({
                         id: `author-${author.hash}`,
                         title: author.name,
                     });
-
-                    // биография
-                    let bio = null;
-                    try {
-                        bio = await this.webWorker.getAuthorBio(author.hash);
-                    } catch (e) {
-                        bio = null;
-                    }
 
                     if (bio) {
                         e.content = {
@@ -76,16 +78,13 @@ class BookAuthorsPage extends BasePage {
                         };
                     }
 
-                    // фото — абсолютный URL, обычный HTTP
+                    // фото — эндпоинт /author/photo (материализует через materializeBio)
                     const photoHref = `${this.config.rootPathStatic}/author/photo?hash=${encodeURIComponent(author.hash)}`;
-
                     e.link = [
                         this.imgLink({href: photoHref, type: 'image/jpeg'}),
                         this.imgLink({href: photoHref, type: 'image/jpeg', thumb: true}),
                     ];
 
-                    // fallback acquisition — ссылка на книгу,
-                    // если читалка не показывает запись без acquisition
                     if (bookInfo) {
                         const ext = bookInfo.book.ext || 'fb2';
                         e.link.push(this.downLink({

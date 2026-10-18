@@ -17,9 +17,10 @@ module.exports = function(app, config) {
 
             // 404 при authors_disabled / отсутствии фото — не ломаем UI
             const photo = await webWorker.getAuthorPhoto(hash).catch(() => null);
-            if (!photo)
+            if (!photo) {
+                res.set('Cache-Control', 'no-cache');
                 return res.status(404).send('not found');
-
+            }
             res.set('Content-Type', webWorker.getAuthorPhotoMime(photo.ext));
             res.set('Cache-Control', 'public, max-age=604800');
             res.sendFile(photo.path);

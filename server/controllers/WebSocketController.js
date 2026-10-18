@@ -111,6 +111,10 @@ class WebSocketController {
                     await this.getBookAuthors(req, ws); break;
                 case 'get-author-bio':
                     await this.getAuthorBio(req, ws); break;
+                case 'get-bio-link':
+                    await this.getBioLink(req, ws); break;
+                case 'get-photo-link':
+                    await this.getPhotoLink(req, ws); break;
                 case 'get-favorites':
                     await this.getFavorites(req, ws); break;
                 case 'get-favorite-uids':
@@ -286,6 +290,26 @@ class WebSocketController {
         const bio = await this.webWorker.getAuthorBio(req.hash);
 
         this.send({bio}, req, ws);
+    }
+
+    async getBioLink(req, ws) {
+        if (!this.config.allowRemoteLib)
+            throw new Error('Remote lib access disabled');
+        if (!utils.hasProp(req, 'hash'))
+            throw new Error(`hash is empty`);
+
+        const result = await this.webWorker.getBioLink(req.hash);
+        this.send(result, req, ws);
+    }
+
+    async getPhotoLink(req, ws) {
+        if (!this.config.allowRemoteLib)
+            throw new Error('Remote lib access disabled');
+        if (!utils.hasProp(req, 'hash'))
+            throw new Error(`hash is empty`);
+
+        const result = await this.webWorker.getPhotoLink(req.hash);
+        this.send(result, req, ws);
     }
 
     async getFavorites(req, ws) {
