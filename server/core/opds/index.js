@@ -41,21 +41,7 @@ module.exports = function(app, config) {
     const search = new SearchPage(config);
     const searchHelp = new SearchHelpPage(config);
 
-    // диспетчер для /book: при opdsBookAddonsInCard=false и наличии доп. материалов
-    // отдаём промежуточный каталог, иначе — обычную карточку книги.
-    // direct=1 жёстко форсирует карточку (используется из BookAddonsPage).
-    const bookDispatch = {
-        async body(req, res) {
-            if (config.opdsBookAddonsInCard || req.query.direct)
-                return book.body(req, res);
-
-            const hasAddons = await bookAddons.hasAddons(req.query.uid);
-            if (!hasAddons)
-                return book.body(req, res);
-
-            return bookAddons.body(req, res);
-        }
-    };
+    const bookDispatch = require('./bookDispatch')(config, {book, bookAddons});
 
     const routes = [
         ['', root],
