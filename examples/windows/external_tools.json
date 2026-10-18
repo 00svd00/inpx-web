@@ -1,0 +1,79 @@
+{
+    "kepub": {
+    "active": true,
+    "title": "(kepub)",
+    "hint": "fb2cng (fbc.exe): https://github.com/rupor-github/fb2cng/releases",
+    "ext": "kepub.epub",
+    "cmd": "powershell -NoProfile -Command \"Copy-Item '${HASHFILE}.raw' '${HASHFILE}.fb2'; & '${EXTDIR}/../tools/fbc.exe' convert --to kepub --nodirs --overwrite -o '${RESULTFILE}' '${HASHFILE}.fb2'; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "debug": true,
+    "type": "download"
+  },
+    "epub": {
+    "active": true,
+    "title": "(epub)",
+    "hint": "пример: конвертация, сохранение копии в отддельной папке, download",
+    "ext": "epub",
+    "cmd": "powershell -NoProfile -Command \"Copy-Item '${HASHFILE}.raw' '${HASHFILE}.fb2'; & '${EXTDIR}/../tools/fbc.exe' convert --to epub2 --nodirs --overwrite -o '${RESULTFILE}' '${HASHFILE}.fb2'; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "cmdExport": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path '${EXTDIR}/export' | Out-Null; Copy-Item '${RESULTFILE}' '${EXTDIR}/export/${FILENAME}'\"",
+    "debug": true,
+    "type": "download"
+  },
+  "azw8": {
+    "active": true,
+    "title": "(azw8)",
+    "hint": "пример: конвертация и сохранение копии в папке export",
+    "ext": "azw8",
+    "cmd": "powershell -NoProfile -Command \"Copy-Item '${HASHFILE}.raw' '${HASHFILE}.fb2'; & '${EXTDIR}/../tools/fbc.exe' convert --to azw8 --nodirs --overwrite -o '${RESULTFILE}' '${HASHFILE}.fb2'; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "cmdExport": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path '${EXTDIR}/export' | Out-Null; Copy-Item '${RESULTFILE}' '${EXTDIR}/export/${FILENAME}'\"",
+    "debug": true,
+    "type": "cmd"
+  },
+  "pdf": {
+    "active": true,
+    "title": "(pdf)",
+    "hint": "fb2cng (fbc.exe)",
+    "ext": "pdf",
+    "cmd": "powershell -NoProfile -Command \"Copy-Item '${HASHFILE}.raw' '${HASHFILE}.fb2'; & '${EXTDIR}/../tools/fbc.exe' convert --to pdf --nodirs --overwrite -o '${RESULTFILE}' '${HASHFILE}.fb2'; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "debug": true,
+    "type": "download"
+  },
+  "fb2Export": {
+    "active": true,
+    "title": "(export fb2)",
+    "hint": "просто экспорт исходного fb2",
+    "ext": "fb2",
+    "cmd": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path '${EXTDIR}/export' | Out-Null; Copy-Item '${BOOKFILE}.raw' '${EXTDIR}/export/${FILENAME}'\"",
+    "type": "cmd"
+  },
+  "fb2ExportZip": {
+    "active": true,
+    "title": "(export fb2.zip)",
+    "hint": "экспорт в zip (без конвертации)",
+    "ext": "fb2",
+    "cmd": "powershell -NoProfile -Command \"Remove-Item -Force -ErrorAction SilentlyContinue '${RESULTFILE}'; Copy-Item '${HASHFILE}.raw' '${FILENAME}'; Compress-Archive -Path '${FILENAME}' -DestinationPath '${RESULTFILE}' -Force; Remove-Item -Force '${FILENAME}'\"",
+    "cmdExport": "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path '${EXTDIR}/export' | Out-Null; Move-Item -Force '${RESULTFILE}' '${EXTDIR}/export/${FILENAME}.zip'\"",
+    "type": "cmd"
+  },
+  "webReader": {
+    "active": true,
+    "title": "(web)",
+    "hint": "веб-читалка",
+    "link": "fbreader/?url=${DOWNLOAD_LINK}",
+    "type": "link"
+  },
+  "localReader1": {
+    "active": false,
+    "title": "(read1)",
+    "hint": "своя ссылка на читалку",
+    "link": "http://127.0.0.1:44080/#/reader?url=http://127.0.0.1:12382${DOWNLOAD_URI}",
+    "type": "link"
+  },
+  "Alreader": {
+    "active": true,
+    "title": "(AlReader)",
+    "hint": "GUI-читалка",
+    "cmd": "powershell -NoProfile -Command \"cd '${EXTDIR}/../tools/AlReaderExt/'; & ./alrext.exe '${BOOKFILE}.raw'\"",
+    "debug": true,
+    "type": "gui"
+  }
+}
