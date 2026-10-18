@@ -1,7 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
 
-const webApp = require('../dist/public.json');
 const ZipReader = require('./core/ZipReader');
 
 const log = new (require('./core/AppLogger'))().log;//singleton
@@ -40,7 +39,10 @@ async function removeReplacedFlags(dir) {
     }
 }
 
-module.exports = async(config) => {
+// webApp инлайнится esbuild при сборке бандла; в тестах передаётся явно,
+// чтобы не требовать dist/public.json (артефакт сборки).
+module.exports = async(config, options = {}) => {
+    const webApp = options.webApp || require('../dist/public.json');
     const markerPath = `${config.publicDir}/.manifest.json`;
     const zipFile = `${config.tempDir}/public.zip`;
 

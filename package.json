@@ -8,6 +8,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "test": "node --require ./test/helpers/preload.js --test \"test/unit/**/*.test.js\"",
+    "test:smoke": "node --test \"test/smoke/**/*.test.js\"",
+    "test:watch": "node --require ./test/helpers/preload.js --test --watch \"test/unit/**/*.test.js\"",
     "dev": "nodemon --inspect --ignore server/.inpx-web --ignore client --exec node --expose-gc server --lib-dir=server/.inpx-web/lib",
     "build:client": "webpack --config build/webpack.prod.config.js",
     "build:bundle": "node -e \"require('fs').rmSync('dist/bundle', {recursive: true, force: true})\" && esbuild server/index.js --bundle --platform=node --format=cjs --external:jembadb --outfile=dist/bundle/index.js",

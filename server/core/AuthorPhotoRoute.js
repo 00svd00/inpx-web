@@ -1,7 +1,7 @@
 const log = new (require('./AppLogger'))().log;//singleton
 const WebWorker = require('./WebWorker');//singleton
 
-module.exports = function(app, config) {
+module.exports = function(app, config, options = {}) {
     if (!config.authorsBioEnabled)
         return;
 
@@ -13,7 +13,7 @@ module.exports = function(app, config) {
             if (!hash || !/^[a-f0-9]{32}$/i.test(hash))
                 return res.status(400).send('bad hash');
 
-            const webWorker = new WebWorker(config);
+            const webWorker = options.webWorker || new WebWorker(config);
 
             // 404 при authors_disabled / отсутствии фото — не ломаем UI
             const photo = await webWorker.getAuthorPhoto(hash).catch(() => null);
