@@ -6,8 +6,12 @@ const crypto = require('crypto');
 const showdown = require('showdown');
 
 const platform = process.argv[2];
+const noReadme = process.argv.includes('--no-readme') || process.env.INPX_PREPKG_NO_README === '1';
 
-const distDir = path.resolve(__dirname, '../dist');
+// distDir можно переопределить (тесты); по умолчанию — <repo>/dist
+const distDir = process.env.INPX_DIST_DIR
+    ? path.resolve(process.env.INPX_DIST_DIR)
+    : path.resolve(__dirname, '../dist');
 const tmpDir = `${distDir}/tmp`;
 const publicDir = `${tmpDir}/public`;
 const outDir = `${distDir}/${platform}`;
@@ -18,11 +22,13 @@ async function build() {
 
     await fs.emptyDir(outDir);
 
-    //добавляем readme в релиз
-    let readme = await fs.readFile(path.resolve(__dirname, '../README.md'), 'utf-8');
-    const converter = new showdown.Converter();
-    readme = converter.makeHtml(readme);
-    await fs.writeFile(`${outDir}/readme.html`, readme);
+    // readme в релиз (в тестах отключается --no-readme, чтобы не зависеть от showdown/README.md)
+    if (!noReadme) {
+        let readme = await fs.readFile(path.resolve(__dirname, '../README.md'), 'utf-8');
+        const converter = new showdown.Converter();
+        readme = converter.makeHtml(readme);
+        await fs.writeFile(`${outDir}/readme.html`, readme);
+    }
 
     // перемещаем public на место
     if (await fs.pathExists(publicDir)) {
