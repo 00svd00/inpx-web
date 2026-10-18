@@ -42,19 +42,21 @@ class AuthorBioReader {
 
         const bioFile = path.join(this.bioDir, `${hash}.bio`);
 
-        // 1) кэш на диске
+        // 1) кэш на диске — если валиден, возвращаем; иначе removeCached(hash)
         if (await fs.pathExists(bioFile)) {
             try {
                 const cached = JSON.parse(zlib.gunzipSync(await fs.readFile(bioFile)).toString('utf8'));
                 if (cached && cached.archiveId === archiveId && typeof cached.html === 'string')
                     return cached.html;
-                await fs.remove(bioFile);
             } catch (e) {
-                try { await fs.remove(bioFile); } catch (e2) {}
+                // битый кэш
             }
+            await this.removeCached(hash);          // невалиден — снести .bio + фото + .nophoto
+        } else {
+            await this.removeCached(hash);          // .bio нет — снести «сиротские» фото/.nophoto
         }
 
-        // 2) архивы — только если есть libDir (поставщик/сингл)
+        // 2) архивы — только если есть libDir
         if (!this.config.libDir)
             return null;
 
@@ -71,12 +73,12 @@ class AuthorBioReader {
         if (html === null)
             return null;
 
-        // 3) записать кэш на диск (атомарно: tmp + move)
+        // 3) записать кэш (атомарно: tmp + move)
         try {
             await fs.ensureDir(this.bioDir);
             const tmpFile = `${bioFile}.tmp`;
-            await fs.writeFile(tmpFile, zlib.gzipSync(JSON.stringify({archiveId, html})));
-            await fs.move(tmpFile, bioFile, {overwrite: true});
+            await fs.writeFile(tmpFile, zlib.gzipSync(JSON.stringify({ archiveId, html })));
+            await fs.move(tmpFile, bioFile, { overwrite: true });
         } catch (e) {
             // не критично
         }
@@ -132,6 +134,34 @@ class AuthorBioReader {
         } catch (e) {
             // не критично
         }
+    }
+
+    // ---- инвалидация кэша автора ---------------------------------------
+    // Сносит все кэшированные артефакты автора по hash:
+    //   <hash>.bio, <hash>.<ext> (.jpg/.jpeg/.png/.gif/.webp), <hash>.nophoto.
+    // Не трогает .tmp/.dev/.replaced. Возвращает true, если что-то снёс.
+    async removeCached(hash) {
+        let removed = false;
+        const candidates = [
+            path.join(this.bioDir, `${hash}.bio`),
+            path.join(this.photoDir, `${hash}.jpg`),
+            path.join(this.photoDir, `${hash}.jpeg`),
+            path.join(this.photoDir, `${hash}.png`),
+            path.join(this.photoDir, `${hash}.gif`),
+            path.join(this.photoDir, `${hash}.webp`),
+            path.join(this.photoDir, `${hash}.nophoto`),
+        ];
+        for (const f of candidates) {
+            try {
+                if (await fs.pathExists(f)) {
+                    await fs.remove(f);
+                    removed = true;
+                }
+            } catch (e) {
+                // не критично
+            }
+        }
+        return removed;
     }
 
     /**

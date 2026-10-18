@@ -239,6 +239,11 @@ class RemoteLib {
             const link = response.link;
             const fileName = path.basename(link);   // <hash>.<ext> или <hash>.nophoto
             await this.downloadRemote(link, `${this.config.authorDir}/${fileName}`);
+
+            // при появлении фото маркер «фото нет» больше не актуален
+            if (!fileName.endsWith('.nophoto')) {
+                try { await fs.remove(`${this.config.authorDir}/${hash}.nophoto`); } catch (e) {}
+            }
             return hash;
         } catch (e) {
             log(LM_ERR, `RemoteLib.downloadPhoto: ${e.message}`);

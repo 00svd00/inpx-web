@@ -859,15 +859,20 @@ class WebWorker {
 
     // материализует <hash>.bio и <hash>.<ext> (или <hash>.nophoto);
     // потребитель скачивает у поставщика.
+    // getBio вызывается первым: он инвалидирует невалидный кэш (сносит .bio, фото, .nophoto)
+    // до downloadBio/downloadPhoto, иначе можно снести только что скачанное.
     async materializeBio(hash) {
         this.checkMyState();
 
         if (!this.authorBioReader)
             throw new Error('authors_disabled');
 
+        // инвалидация + кэш: getBio сам снесёт невалидный кэш (включая фото/.nophoto)
+        let bio = await this.authorBioReader.getBio(hash).catch(() => null);
+
         if (this.remoteLib) {
             const bioFile = `${this.config.authorDir}/${hash}.bio`;
-            if (!await fs.pathExists(bioFile)) {
+            if (bio === null && !await fs.pathExists(bioFile)) {
                 try { await this.remoteLib.downloadBio(hash); } catch (e) {}
             }
 
@@ -878,7 +883,8 @@ class WebWorker {
             }
         }
 
-        const bio = await this.authorBioReader.getBio(hash).catch(() => null);
+        if (bio === null)
+            bio = await this.authorBioReader.getBio(hash).catch(() => null);
         const photo = await this.authorBioReader.getPhoto(hash).catch(() => null);
 
         return {hash, bio, photo};
