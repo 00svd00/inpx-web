@@ -23,7 +23,7 @@ const Fb2Helper = require('./fb2/Fb2Helper');
 
 // 7z read and covers
 const extractZipCoverAndConvert = require("./CoverJXLConvert");
-const Fb2AppendImages = require("./Fb2AppendImages");
+const BookAppendImages = require("./BookAppendImages");
 const ReviewsReader = require('./ReviewsReader');
 const AuthorBioReader = require('./AuthorBioReader');
 
@@ -527,7 +527,7 @@ class WebWorker {
           } else {
             const folder7z = folder.replace(".zip", ".7z");
             if (await fs.pathExists(folder7z)) {
-              await Fb2AppendImages(this.config, libFolder, file, outFile);
+              await BookAppendImages(this.config, libFolder, file, outFile);
               return outFile;
             }
           }
