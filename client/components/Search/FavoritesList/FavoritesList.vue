@@ -24,6 +24,7 @@
                 :show-deleted="showDeleted"
                 :show-rates="showRates"
                 :show-genres="showGenres"
+                :show-read-link="showReadLink"
                 @book-event="bookEvent"
             />
         </div>

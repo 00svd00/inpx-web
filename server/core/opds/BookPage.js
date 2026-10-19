@@ -243,10 +243,10 @@ class BookPage extends BasePage {
                 // рецензии — ссылка на OPDS-каталог (дёшево)
                 if (this.config.opdsBookAddonsInCard && reviewsCount && reviewsCount.declaredCount) {
                     const reviewsHref = `${this.opdsRoot}/book/reviews?uid=${encodeURIComponent(bookUid)}`;
-                    let reviewsTitle = `Рецензии(${reviewsCount.declaredCount} оценок)`;
+                    let reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount})`;
                     if (reviewsCount.sum) {
                         const avg = (reviewsCount.sum / reviewsCount.declaredCount).toFixed(1);
-                        reviewsTitle = `Рецензии(${reviewsCount.declaredCount} оценок, средняя ${avg})`;
+                        reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount}, средняя: ${avg})`;
                     }
 
                     e.link.push(this.makeLink({

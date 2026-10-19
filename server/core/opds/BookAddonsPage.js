@@ -106,10 +106,10 @@ class BookAddonsPage extends BasePage {
                 }
 
                 if (reviewsCount && reviewsCount.declaredCount) {
-                    let reviewsTitle = `Рецензии (${reviewsCount.declaredCount} оценок)`;
+                    let reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount})`;
                     if (reviewsCount.sum) {
                         const avg = (reviewsCount.sum / reviewsCount.declaredCount).toFixed(1);
-                        reviewsTitle = `Рецензии(${reviewsCount.declaredCount} оценок, средняя ${avg})`;
+                        reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount}, средняя: ${avg})`;
                     }
                     entries.push(
                         this.makeEntry({
