@@ -2,12 +2,25 @@ const fs = require('fs-extra');
 const StreamUnzip = require('node-stream-zip');
 const SevenZipHelper = require('./SevenZipHelper');
 
-// Архивы многих inpx-коллекций (в частности, Флибусты) сжаты PPMd (метод 98).
-// node-stream-zip умеет только deflate и падает на "Unknown compression method: 98",
-// поэтому такие записи достаем внешним 7z, если он есть в системе.
+// node-stream-zip умеет только deflate и падает:
+//  - "Bad archive" — это не zip (например, 7z);
+//  - "Unknown compression method" — это zip, но entry сжата не deflate (PPMd, метод 98).
+// В обоих случаях пробуем 7z (если он есть в системе).
 
-function isUnsupportedMethod(e) {
-    return e && /Unknown compression method/i.test(e.message || '');
+// zip не смог прочитать архив/entry — пробуем 7z
+function shouldFallbackTo7z(e) {
+    return e && (
+        /Bad archive/i.test(e.message || '') ||
+        /Unknown compression method/i.test(e.message || '')
+    );
+}
+
+// 7z есть — ок; нет — понятная ошибка (с исходным сообщением zip)
+function sevenZipOrThrow(e) {
+    const cmd = SevenZipHelper.getSevenZipPath();
+    if (!cmd)
+        throw new Error(`${e.message}. Install 7-Zip (7z) to read such archives`);
+    return cmd;
 }
 
 class ZipReader {
@@ -15,21 +28,42 @@ class ZipReader {
         this.zip = null;
         this.zipFile = null;
         this.sevenZip = new SevenZipHelper();
+        this.is7z = false;
     }
 
     checkState() {
-        if (!this.zip)
+        if (!this.zip && !this.is7z)
             throw new Error('Zip closed');
     }
 
     async open(zipFile, zipEntries = true) {
-        if (this.zip)
+        if (this.zip || this.is7z)
             throw new Error('Zip file is already open');
 
-        const zip = new StreamUnzip.async({file: zipFile, skipEntryNameValidation: true});
+        let zip = null;
+        try {
+            zip = new StreamUnzip.async({file: zipFile, skipEntryNameValidation: true});
+            if (zipEntries)
+                this.zipEntries = await zip.entries();
+        } catch (e) {
+            if (zip) {
+                try { await zip.close(); } catch (e2) {}
+                zip = null;
+            }
+            if (!shouldFallbackTo7z(e))
+                throw e;
 
-        if (zipEntries)
-            this.zipEntries = await zip.entries();
+            // не zip (или zip не открылся) — пробуем 7z
+            sevenZipOrThrow(e);
+
+            this.zipFile = zipFile;
+            this.is7z = true;
+            if (zipEntries) {
+                const list = await this.sevenZip.list(zipFile);
+                this.zipEntries = Object.fromEntries(list.map(n => [n, true]));
+            }
+            return;
+        }
 
         this.zip = zip;
         this.zipFile = zipFile;
@@ -41,18 +75,16 @@ class ZipReader {
     }
 
     fallbackOrThrow(e) {
-        if (!isUnsupportedMethod(e))
+        if (!shouldFallbackTo7z(e))
             throw e;
-
-        const cmd = SevenZipHelper.getSevenZipPath();
-        if (!cmd)
-            throw new Error(`${e.message}. Install 7-Zip (7z) to read such archives`);
-
-        return cmd;
+        sevenZipOrThrow(e);
     }
 
     async extractToBuf(entryFilePath) {
         this.checkState();
+
+        if (this.is7z)
+            return await this.sevenZip.extract(this.zipFile, entryFilePath);
 
         try {
             return await this.zip.entryData(entryFilePath);
@@ -64,6 +96,12 @@ class ZipReader {
 
     async extractToFile(entryFilePath, outputFile) {
         this.checkState();
+
+        if (this.is7z) {
+            const buf = await this.sevenZip.extract(this.zipFile, entryFilePath);
+            await fs.writeFile(outputFile, buf);
+            return;
+        }
 
         try {
             await this.zip.extract(entryFilePath, outputFile);
@@ -77,11 +115,16 @@ class ZipReader {
     async extractAllToDir(outputDir) {
         this.checkState();
 
+        if (this.is7z) {
+            await fs.ensureDir(outputDir);
+            await this.sevenZip.extractAll(this.zipFile, outputDir);
+            return;
+        }
+
         try {
             await this.zip.extract(null, outputDir);
         } catch (e) {
             this.fallbackOrThrow(e);
-
             await fs.ensureDir(outputDir);
             await this.sevenZip.extractAll(this.zipFile, outputDir);
         }
@@ -91,6 +134,10 @@ class ZipReader {
         if (this.zip) {
             await this.zip.close();
             this.zip = null;
+            this.zipFile = null;
+            this.zipEntries = undefined;
+        } else if (this.is7z) {
+            this.is7z = false;
             this.zipFile = null;
             this.zipEntries = undefined;
         }

@@ -1,7 +1,6 @@
 const fs = require('fs-extra');
 const { execFileSync } = require('node:child_process');
 const ZipReader = require('../ZipReader');
-const SevenZipHelper = require('../SevenZipHelper');
 const { resolveDjxl } = require('../DjxlResolver');
 
 const JXL_JPEG_QUALITY = 70;
@@ -58,22 +57,17 @@ async function jxlConvert(imageBuff, pathTmp, namefile) {
     return {outputImg, ext};
 }
 
-// --- чтение архивов: ZipReader (zip, быстро) → fallback SevenZipHelper (7z/иное) на Bad archive ---
+// --- чтение архивов: ZipReader сам выбирает zip/7z/PPMd ---
 
 async function readArchiveEntry(archivePath, entryName) {
     const zipReader = new ZipReader();
     try {
         await zipReader.open(archivePath);
-        if (entryName in zipReader.zipEntries)
-            return await zipReader.extractToBuf(entryName);
-        return null;
+        if (!(entryName in zipReader.zipEntries))
+            return null;
+        return await zipReader.extractToBuf(entryName);
     } catch (e) {
-        if (/Bad archive/i.test(e.message || '')) {
-            const h = new SevenZipHelper();
-            try { return await h.extract(archivePath, entryName); }
-            catch (e2) { return null; }
-        }
-        throw e;
+        return null;
     } finally {
         try { await zipReader.close(); } catch (e) {}
     }
@@ -85,16 +79,12 @@ async function listArchiveEntries(archivePath) {
         await zipReader.open(archivePath);
         return Object.keys(zipReader.zipEntries);
     } catch (e) {
-        if (/Bad archive/i.test(e.message || '')) {
-            const h = new SevenZipHelper();
-            try { return await h.list(archivePath); }
-            catch (e2) { return []; }
-        }
-        throw e;
+        return [];
     } finally {
         try { await zipReader.close(); } catch (e) {}
     }
 }
+
 
 module.exports = {
     isJxlBuffer, isPngBuffer, isJpgBuffer,
