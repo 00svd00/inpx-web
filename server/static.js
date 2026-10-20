@@ -7,6 +7,7 @@ const utils = require('./core/utils');
 const WebWorker = require('./core/WebWorker');//singleton
 const Favorites = require('./core/Favorites');
 const webAppDir = require('../build/appdir');
+const { bookContentType } = require('./core/book/bookFormats');
 const {exec, execSync} = require('child_process');
 
 const log = new (require('./core/AppLogger'))().log;//singleton
@@ -24,26 +25,6 @@ function generateZip(zipFile, dataFile, dataFileInZip) {
         );
         zip.end();
     });
-}
-
-//Content-Type книги по ее расширению: на диске файл назван хешем, и express
-//отдает application/octet-stream - клиент не понимает, что именно скачал.
-//Типы те же, что сервер объявляет в OPDS (см. core/opds/BookPage.js)
-function bookContentType(downFileName) {
-    const isZip = (path.extname(downFileName).toLowerCase() === '.zip');
-    const name = (isZip ? path.basename(downFileName, path.extname(downFileName)) : downFileName);
-    const ext = path.extname(name).substring(1).toLowerCase();
-
-    if (!ext)
-        return (isZip ? 'application/zip' : '');
-
-    if (ext === 'mobi')
-        return 'application/x-mobipocket-ebook';
-
-    if (ext === 'epub')
-        return 'application/epub+zip';
-
-    return `application/${ext}${isZip ? '+zip' : ''}`;
 }
 
 //книга отдана клиенту — кладем ее на полку «Избранное»

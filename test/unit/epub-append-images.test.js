@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs-extra');
 const path = require('path');
+const crypto = require('crypto');
 
 const epubAppendImages = require('../../server/core/book/epubAppendImages');
 const { makeTmpDir, cleanup } = require('../helpers/tmpdir');
@@ -19,6 +20,11 @@ async function makeEnv(dir) {
     await fs.ensureDir(libDir);
     await fs.ensureDir(tempDir);
     return {libDir, tempDir};
+}
+
+async function sha256File(f) {
+    const buf = await fs.readFile(f);
+    return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
 test('epubAppendImages: 7z-внутренний, манифест, full-path=content.opf', {skip: !hasTools}, async () => {
@@ -134,5 +140,25 @@ test('epubAppendImages: 7z-не наш контейнер → как есть', 
         const outZip = path.join(dir, 'out.epub');
         await epubAppendImages({libDir, tempDir}, 'lib0.zip', 'book.epub', sevenZipPath, outZip);
         assert.deepStrictEqual(await fs.readFile(outZip), before);
+    } finally { await cleanup(dir); }
+});
+
+test('epubAppendImages: стабильный hash (mtime=1980), два прогона', {skip: !has7z()}, async () => {
+    const dir = await makeTmpDir();
+    try {
+        const {libDir, tempDir} = await makeEnv(dir);
+        const sevenZipPath = makeEpub7z(dir, 'src.7z', {bookId: '673407', fullPath: 'content.opf', manifest: null});
+
+        const out1 = path.join(dir, 'out1.epub');
+        const out2 = path.join(dir, 'out2.epub');
+        await epubAppendImages({libDir, tempDir}, 'lib0.zip', '673407.epub', sevenZipPath, out1);
+        await epubAppendImages({libDir, tempDir}, 'lib0.zip', '673407.epub', sevenZipPath, out2);
+
+        assert.strictEqual(await sha256File(out1), await sha256File(out2));
+
+        const {entries, data} = await readZip(out1);
+        assert.ok(entries.includes('mimetype'));
+        assert.strictEqual(data['mimetype'].toString(), 'application/epub+zip');
+        assert.ok(entries.includes('content.opf'));
     } finally { await cleanup(dir); }
 });

@@ -4,6 +4,7 @@ const dayjs = require('dayjs');
 
 const BasePage = require('./BasePage');
 const Fb2Parser = require('../fb2/Fb2Parser');
+const { bookFormats } = require('../book/bookFormats');
 
 class BookPage extends BasePage {
     constructor(config) {
@@ -147,20 +148,7 @@ class BookPage extends BasePage {
 
                 //format
                 const ext = bookInfo.book.ext;
-                let formats;
-                if (ext === 'epub') {
-                    // правильный MIME для простого epub; zip-в-zip в OPDS не объявляем
-                    formats = {
-                        'epub+zip': bookInfo.link,
-                    };
-                } else {
-                    formats = {
-                        [`${ext}+zip`]: `${bookInfo.link}/zip`,
-                        [ext]: bookInfo.link,
-                    };
-                    if (ext === 'mobi')
-                        formats['x-mobipocket-ebook'] = bookInfo.link;
-                }
+                const formats = bookFormats(ext, bookInfo.link);
 
                 //entry
                 const e = this.makeEntry({
