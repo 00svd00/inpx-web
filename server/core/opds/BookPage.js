@@ -147,15 +147,19 @@ class BookPage extends BasePage {
 
                 //format
                 const ext = bookInfo.book.ext;
-                const formats = {
-                    [`${ext}+zip`]: `${bookInfo.link}/zip`,
-                    [ext]: bookInfo.link,
-                };
-
-                if (ext === 'mobi') {
-                    formats['x-mobipocket-ebook'] = bookInfo.link;
-                } else if (ext == 'epub') {
-                    formats[`${ext}+zip`] = bookInfo.link;
+                let formats;
+                if (ext === 'epub') {
+                    // правильный MIME для простого epub; zip-в-zip в OPDS не объявляем
+                    formats = {
+                        'epub+zip': bookInfo.link,
+                    };
+                } else {
+                    formats = {
+                        [`${ext}+zip`]: `${bookInfo.link}/zip`,
+                        [ext]: bookInfo.link,
+                    };
+                    if (ext === 'mobi')
+                        formats['x-mobipocket-ebook'] = bookInfo.link;
                 }
 
                 //entry

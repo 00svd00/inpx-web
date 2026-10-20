@@ -116,33 +116,27 @@ module.exports = (app, config) => {
 
                     if (!req.acceptsEncodings('gzip') || fileType) {
                         const rawFile = `${bookFile}.raw`;
+
+                        // источник «сырого» файла: для gzip — распакованный raw, для epub — сам <hash> (zip)
+                        let rawSrc = bookFile;
                         if (isGzipStored) {
-                            //не принимает gzip, тогда распакуем
                             if (!await fs.pathExists(rawFile))
                                 await utils.gunzipFile(bookFile, rawFile);
-                            gzipped = false;
-                        } else {
-                            // epub: <hash> — zip как есть
-                            gzipped = false;
+                            rawSrc = rawFile;
                         }
+                        gzipped = false;
 
                         if (fileType === undefined || fileType === 'raw') {
-                            if (isGzipStored)
-                                bookFile = rawFile;
-                            // epub: bookFile остаётся <hash> (zip)
+                            bookFile = rawSrc;
                         } else if (fileType === 'zip') {
-                            if (isGzipStored) {
-                                //создаем zip-файл
-                                bookFile += '.zip';
-                                if (!await fs.pathExists(bookFile))
-                                    await generateZip(bookFile, rawFile, downFileName);
-                            }
-                            // epub: уже zip
+                            bookFile += '.zip';
+                            if (!await fs.pathExists(bookFile))
+                                await generateZip(bookFile, rawSrc, downFileName);
                             downFileName += '.zip';
                         } else {
                             let extType = fileType.match(/^ext-([0-9a-z]+)$/i);
                             if (extType && config.external[extType[1]]) {
-                                //external tools
+                                // external tools: BOOKFILE = <hash> (как раньше, для gzip это <hash>, не raw)
                                 let ext = config.external[extType[1]];
                                 ext.ext = ext.ext || extType[1];
 
