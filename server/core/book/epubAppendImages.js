@@ -83,16 +83,19 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
     // пересборка: mimetype первым (stored), entries из <bookId>/ (без префикса, кроме mimetype), картинки; без FLibraryImageIndex.json
     const srcRoot = path.join(tempDir, prefix);
     const all = await walkFiles(srcRoot);
+    const MTIME = new Date('1980-01-01T00:00:00Z'); //стабильный mtime
+    all.sort(); // walkFiles — стабильный порядок
+    const imageEntries = Array.from(toWrite.entries()).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
     await new Promise((resolve, reject) => {
         const zip = new yazl.ZipFile();
-        zip.addBuffer(Buffer.from('application/epub+zip'), 'mimetype', {compress: false});
+        zip.addBuffer(Buffer.from('application/epub+zip'), 'mimetype', {compress: false, mtime: MTIME});
         for (const rel of all) {
             if (rel === 'mimetype') continue;
-            zip.addFile(path.join(srcRoot, rel), rel, {compress: true});
+            zip.addFile(path.join(srcRoot, rel), rel, {compress: true, mtime: MTIME});
         }
-        for (const [rel, buf] of toWrite)
-            zip.addBuffer(buf, rel, {compress: false});
+        for (const [rel, buf] of imageEntries)
+            zip.addBuffer(buf, rel, {compress: false, mtime: MTIME});
         zip.outputStream.pipe(fs.createWriteStream(outZip))
             .on('error', reject)
             .on('finish', () => resolve());

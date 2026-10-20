@@ -40,6 +40,9 @@ function bookContentType(downFileName) {
     if (ext === 'mobi')
         return 'application/x-mobipocket-ebook';
 
+    if (ext === 'epub')
+        return 'application/epub+zip';
+
     return `application/${ext}${isZip ? '+zip' : ''}`;
 }
 
@@ -104,23 +107,37 @@ module.exports = (app, config) => {
 
                     const desc = JSON.parse(await fs.readFile(bookFileDesc, 'utf8'));
                     let downFileName = desc.downFileName;
-                    let gzipped = true;
+
+                    // epub в кеше — zip как есть (restoreBook не гзипит epub); остальное — gzip
+                    const bookExt = path.extname(desc.libFile || desc.downFileName || '').toLowerCase();
+                    const isGzipStored = (bookExt !== '.epub');
+
+                    let gzipped = isGzipStored;
 
                     if (!req.acceptsEncodings('gzip') || fileType) {
                         const rawFile = `${bookFile}.raw`;
-                        //не принимает gzip, тогда распакуем
-                        if (!await fs.pathExists(rawFile))
-                            await utils.gunzipFile(bookFile, rawFile);
-
-                        gzipped = false;
+                        if (isGzipStored) {
+                            //не принимает gzip, тогда распакуем
+                            if (!await fs.pathExists(rawFile))
+                                await utils.gunzipFile(bookFile, rawFile);
+                            gzipped = false;
+                        } else {
+                            // epub: <hash> — zip как есть
+                            gzipped = false;
+                        }
 
                         if (fileType === undefined || fileType === 'raw') {
-                            bookFile = rawFile;
+                            if (isGzipStored)
+                                bookFile = rawFile;
+                            // epub: bookFile остаётся <hash> (zip)
                         } else if (fileType === 'zip') {
-                            //создаем zip-файл
-                            bookFile += '.zip';
-                            if (!await fs.pathExists(bookFile))
-                                await generateZip(bookFile, rawFile, downFileName);
+                            if (isGzipStored) {
+                                //создаем zip-файл
+                                bookFile += '.zip';
+                                if (!await fs.pathExists(bookFile))
+                                    await generateZip(bookFile, rawFile, downFileName);
+                            }
+                            // epub: уже zip
                             downFileName += '.zip';
                         } else {
                             let extType = fileType.match(/^ext-([0-9a-z]+)$/i);

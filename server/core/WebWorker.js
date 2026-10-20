@@ -20,6 +20,7 @@ const log = new (require('./AppLogger'))().log;//singleton
 const utils = require('./utils');
 const genreTree = require('./genres');
 const Fb2Helper = require('./fb2/Fb2Helper');
+const { extractEpubCover } = require('./epub/epubCover');
 
 // 7z read and covers
 const extractZipCoverAndConvert = require("./CoverJXLConvert");
@@ -553,10 +554,16 @@ class WebWorker {
 
         if (!await fs.pathExists(bookFile) || !await fs.pathExists(bookFileDesc)) {
             if (!await fs.pathExists(bookFile) && extractedFile) {
-                const tmpFile = `${this.config.tempDir}/${utils.randomHexString(30)}`;
-                await utils.gzipFile(extractedFile, tmpFile, 4);
-                await fs.remove(extractedFile);
-                await fs.move(tmpFile, bookFile, {overwrite: true});
+                const ext = path.extname(libFile).toLowerCase();
+                if (ext === '.epub') {
+                    // epub уже сжат (zip) — gzip не даёт выигрыша, кладём как есть
+                    await fs.move(extractedFile, bookFile, {overwrite: true});
+                } else {
+                    const tmpFile = `${this.config.tempDir}/${utils.randomHexString(30)}`;
+                    await utils.gzipFile(extractedFile, tmpFile, 4);
+                    await fs.remove(extractedFile);
+                    await fs.move(tmpFile, bookFile, {overwrite: true});
+                }
             } else {
                 await utils.touchFile(bookFile);
             }
@@ -715,6 +722,13 @@ class WebWorker {
                         if(jxlcover){
                             result.cover = jxlcover
                         }
+                    }
+                } else if (book.ext === 'epub') {
+                    const cover = await extractEpubCover(bookFile);
+                    if (cover) {
+                        result.cover = `${this.config.bookPathStatic}/${hash}${cover.ext}`;
+                        result.coverType = cover.ext === '.png' ? 'image/png' : 'image/jpeg';
+                        await fs.writeFile(`${bookFile}${cover.ext}`, cover.buffer);
                     }
                 }
 

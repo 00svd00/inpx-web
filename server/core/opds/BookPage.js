@@ -298,9 +298,8 @@ class BookPage extends BasePage {
                     }
                 }
                 if (bookInfo.cover) {
-                    let coverType = 'image/jpeg';
-                    if (path.extname(bookInfo.cover) == '.png')
-                        coverType = 'image/png';
+                    const coverType = bookInfo.coverType
+                        || (path.extname(bookInfo.cover) == '.png' ? 'image/png' : 'image/jpeg');
 
                     e.link.push(this.imgLink({href: bookInfo.cover, type: coverType}));
                     e.link.push(this.imgLink({href: bookInfo.cover, type: coverType, thumb: true}));
