@@ -5,6 +5,7 @@ const dayjs = require('dayjs');
 const BasePage = require('./BasePage');
 const Fb2Parser = require('../fb2/Fb2Parser');
 const { bookFormats } = require('../book/bookFormats');
+const { isAvailable, parseExternalKey } = require('../externalTools');
 
 class BookPage extends BasePage {
     constructor(config) {
@@ -271,8 +272,11 @@ class BookPage extends BasePage {
 
                 //external tools (OPDS)
                 if (this.config.external) {
+                    const bookExt = (bookInfo.book.ext || '').toLowerCase();
                     for (const [key, ext] of Object.entries(this.config.external)) {
-                        if (!ext.active || !ext.cmd)
+                        if (!parseExternalKey('ext-' + key))   //валидность ключа
+                            continue;
+                        if (!isAvailable(this.config, key, bookExt))
                             continue;
 
                         // в OPDS имеет смысл только download: cmd/gui/link не отдают файл

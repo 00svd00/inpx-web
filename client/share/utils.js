@@ -103,3 +103,4 @@ export function isManualDate(date) {
     return date && (date[0] == ',' || (isDigit(date[0]) && isDigit(date[1])));
 }
 
+export { normExt, getExternalItems } from './externalItems';

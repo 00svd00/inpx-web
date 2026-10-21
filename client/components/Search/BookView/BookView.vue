@@ -75,9 +75,9 @@
                     (скачать)
                 </div>
 
-                <div v-for="(item, key) in this.config.external">
-                    <div v-if="item.active" class="q-ml-sm clickable" :title="item.hint" @click.stop.prevent="emit('ext-' + key)">
-                        {{ item.title || key }}
+                <div v-for="item in externalItems" :key="item.key">
+                    <div class="q-ml-sm clickable" :title="item.hint" @click.stop.prevent="emit('ext-' + item.key)">
+                        {{ item.title }}
                     </div>
                 </div>
 
@@ -247,6 +247,10 @@ class BookView {
         if (this.favoriteAction === 'remove')
             return 'favoriteRemove';
         return this.isFavorite ? 'favoriteRemove' : 'favoriteAdd';
+    }
+
+    get externalItems() {
+        return utils.getExternalItems(this.config.external, this.book && this.book.ext);
     }
 
     emit(action) {

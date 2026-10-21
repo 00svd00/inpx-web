@@ -8,7 +8,7 @@ const WebWorker = require('./core/WebWorker');//singleton
 const Favorites = require('./core/Favorites');
 const webAppDir = require('../build/appdir');
 const { bookContentType } = require('./core/book/bookFormats');
-const {exec, execSync} = require('child_process');
+const { resolveExternalByFileType, runCmd, runCmdExport, runGui } = require('./core/externalTools');
 
 const log = new (require('./core/AppLogger'))().log;//singleton
 
@@ -115,111 +115,51 @@ module.exports = (app, config) => {
                                 await generateZip(bookFile, rawSrc, downFileName);
                             downFileName += '.zip';
                         } else {
-                            let extType = fileType.match(/^ext-([0-9a-z]+)$/i);
-                            if (extType && config.external[extType[1]]) {
-                                // external tools: BOOKFILE = <hash> (как раньше, для gzip это <hash>, не raw)
-                                let ext = config.external[extType[1]];
-                                ext.ext = ext.ext || extType[1];
+                            const t = resolveExternalByFileType(config, fileType, {
+                                bookExt,
+                                bookFile,
+                                downFileName,
+                                desc,
+                            });
 
-                                if (!ext.active || !ext.cmd) {
-                                    throw new Error(`File type '${extType[0]}' is not active or has empty cmd`);
-                                }
+                            if (!t)
+                                throw new Error(`File type '${fileType}' is not active or has empty cmd`);
 
-                                if (req.method === 'HEAD')
-                                    return res.end();
+                            if (req.method === 'HEAD')
+                                return res.end();
 
-                                let extVar = {
-                                    BOOKFILE: bookFile,
-                                    HASHFILE: path.basename(bookFile),
-                                    RESULTFILE: `${bookFile}.${ext.ext}`,
-                                    FILENAME: downFileName.replace(/\.fb2$/, `.${ext.ext}`),
-                                    EXTDIR: path.dirname(config.externalToolsConfig),
-                                    LIBFOLDER: desc.libFolder,
-                                    LIBFILE: desc.libFile,
-                                };
+                            if (t.type === 'gui') {
+                                runGui(t);
+                                return res.end();
+                            }
 
-                                let re = new RegExp("\\$\\{(.*?)\\}","gi");
-                                let cmd_line = ext.cmd.replace(re, function(matched){
-                                    return extVar[matched.replace(/[${}]/g, "")] || matched;
-                                });
-
-                                if (ext.debug)
-                                    log(`CMD_EXEC: ${cmd_line}`);
-
-                                //можно запускать GUI, например, локальную читалку или какой-то редактор/конвертер с интерфейсом
-                                if (ext.type === "gui") {
-                                    try {
-                                        let cmd = exec(cmd_line, {
-                                            cwd: path.dirname(bookFile),
-                                            windowsHide: false,
-                                        }, (error, stdout, stderr) => {
-                                            if (error) {
-                                                log(LM_ERR, error);
-                                                return res.end();
-                                            }
-                                            if (ext.debug) {
-                                                log(`CMD_stdout: ${stdout}`);
-                                                log(`CMD_stderr: ${stderr}`);
-                                            }
-                                        });
-                                    } catch (e) {
-                                        log(LM_ERR, e);
-                                        log(LM_ERR, e.stderr.toString());
-                                    }
-                                    return res.end();
-                                }
-
-                                //запуск cmd конвертера
+                            if (t.type === 'cmd' || t.type === 'download') {
                                 try {
-                                    let cmd = execSync(cmd_line, {
-                                        cwd: path.dirname(bookFile),
-                                        windowsHide: ext.debug ? false : true,
-                                        timeout: 60000,
-                                    });
-                                    if (ext.debug)
-                                        log("CMD_stdout: " + cmd.toString());
+                                    runCmd(t);
                                 } catch (e) {
-                                    log(LM_ERR, e);
-                                    log(LM_ERR, e.stderr.toString());
                                     return res.end();
                                 }
 
-                                //если есть cmdExport и есть результат работы конвертера(RESULTFILE), то запускается cmdExport
-                                if (ext.cmdExport && await fs.pathExists(extVar.RESULTFILE)) {
-                                    cmd_line = ext.cmdExport.replace(re, function(matched){
-                                        return extVar[matched.replace(/[${}]/g, "")] || matched;
-                                    });
-                                    if (ext.debug)
-                                        log(`CMD_EXPORT: ${cmd_line}`);
+                                if (t.cmdExportLine && await fs.pathExists(t.resultFile)) {
                                     try {
-                                        let cmd = execSync(cmd_line, {
-                                            cwd: path.dirname(bookFile),
-                                            windowsHide: ext.debug ? false : true,
-                                            timeout: 60000,
-                                        });
-                                        if (ext.debug)
-                                            log("CMD_stdout: " + cmd.toString());
+                                        runCmdExport(t);
                                     } catch (e) {
-                                        log(LM_ERR, e);
-                                        log(LM_ERR, e.stderr.toString());
                                         return res.end();
                                     }
                                 }
 
-                                if (ext.type === "download") {
-                                    if (!await fs.pathExists(extVar.RESULTFILE))
-                                        throw new Error(`File not exists: '${extVar.RESULTFILE}'`);
-                                    //тут нужно посмотреть, что лучше inline или attachment. на inline может браузер со своими действиями влезть
-                                    //res.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(extVar.FILENAME)}`);
-                                    //res.set('Content-Type', 'application/octet-stream');
-                                    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(extVar.FILENAME)}`);
-                                    res.set('Content-Length', fs.statSync(extVar.RESULTFILE).size);
+                                if (t.type === 'download') {
+                                    if (!await fs.pathExists(t.resultFile))
+                                        throw new Error(`File not exists: '${t.resultFile}'`);
+                                    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(t.filename)}`);
+                                    res.set('Content-Length', fs.statSync(t.resultFile).size);
                                     res.set('Cache-Control', 'private');
-                                    return res.sendFile(extVar.RESULTFILE);
+                                    return res.sendFile(t.resultFile);
                                 }
                                 return res.end();
                             }
-                            throw new Error(`Unsupported file type: ${fileType}`);
+
+                            throw new Error(`External tool '${t.key}': unknown type '${t.type}'`);
                         }
                     }
 

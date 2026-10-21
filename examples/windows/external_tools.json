@@ -37,6 +37,28 @@
     "debug": true,
     "type": "download"
   },
+
+  "fb2zip": {
+    "title": "(FB2 zip)",
+    "hint": "пример с фильтром по расширению файла и конвертацией через https://github.com/jgm/pandoc/releases",
+    "ext": "fb2.zip",
+    "active": true,
+    "onlyExt": ["epub","docx"],
+    "debug": true,
+    "cmd": "powershell -NoProfile -Command \"& '${EXTDIR}/../tools/pandoc.exe' -f ${BOOKEXT} -t fb2 -o '${HASHFILE}.fb2' '${HASHFILE}'; Compress-Archive -Path '${HASHFILE}.fb2' -DestinationPath '${RESULTFILE}' -Force; Remove-Item -Force '${HASHFILE}.fb2'\"",
+    "type": "download"
+  },
+
+  "docx": {
+    "active": true,
+    "hint": "другой пример с pandoc. EPUB в кеше лежат сразу готовые, нет промежуточного извлечения в .raw",
+    "title": "(docx)",
+    "ext": "docx",
+    "cmd": "powershell -NoProfile -Command \"if (Test-Path '${HASHFILE}.raw') { & '${EXTDIR}/../tools/pandoc.exe' -f ${BOOKEXT} -t docx -o '${RESULTFILE}' '${HASHFILE}.raw' } else { & '${EXTDIR}/../tools/pandoc.exe' -f ${BOOKEXT} -t docx -o '${RESULTFILE}' '${HASHFILE}' }\"",
+    "debug": true,
+    "type": "download"
+  },
+
   "fb2Export": {
     "active": true,
     "title": "(export fb2)",

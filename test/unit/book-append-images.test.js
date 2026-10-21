@@ -56,8 +56,7 @@ test('BookAppendImages: ext=epub → epub-обработчик (7z-в-7z)', {ski
         assert.ok(data['cover.jpg'].subarray(0, 3).equals(SIG.jpeg));
         assert.ok(!entries.includes('FLibraryImageIndex.json'));
         assert.ok(!entries.some(e => e.startsWith(`${bookId}/`)));
-    } finally { //await cleanup(dir); 
-        resetSingletons(); }
+    } finally { await cleanup(dir); resetSingletons(); }
 });
 
 test('BookAppendImages: ext=fb2 → fb2-обработчик (без images — cover не теряется)', {skip: !hasTools}, async () => {

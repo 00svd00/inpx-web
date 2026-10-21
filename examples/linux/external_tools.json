@@ -50,6 +50,27 @@
     "type": "download"
   },
 
+  "fb2zip": {
+    "title": "(FB2 zip)",
+    "hint": "пример с фильтром по расширению файла и конвертацией через https://github.com/jgm/pandoc/releases",
+    "ext": "fb2.zip",
+    "active": true,
+    "onlyExt": ["epub","docx"],
+    "debug": true,
+    "cmd": "${EXTDIR}/../tools/pandoc -f ${BOOKEXT} -t fb2 -o '${HASHFILE}.fb2' '${HASHFILE}'; zip '${HASHFILE}.fb2.zip' '${HASHFILE}.fb2'; printf '@ %s\\n@=%s\\n' '${HASHFILE}.fb2' \"$(echo '${FILENAME}' | rev | cut -c 5- | rev)\" | zipnote -w '${HASHFILE}.fb2.zip'; rm -f '${HASHFILE}.fb2'",
+    "type": "download"
+  },
+
+  "docx": {
+    "active": true,
+    "hint": "другой пример с pandoc. EPUB в кеше лежат сразу готовые, нет промежуточного извлечения в .raw",
+    "title": "(docx)",
+    "ext": "docx",
+    "cmd": "[ -f '${HASHFILE}.raw' ] && ${EXTDIR}/../tools/pandoc -f ${BOOKEXT} -t docx -o '${HASHFILE}.docx' '${HASHFILE}.raw' || ${EXTDIR}/../tools/pandoc -f ${BOOKEXT} -t docx -o '${HASHFILE}.docx' '${HASHFILE}';",
+    "debug": true,
+    "type": "download"
+  },
+
   "fb2Export": {
     "active": true,
     "title": "(export fb2)",
