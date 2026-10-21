@@ -4,6 +4,7 @@ const EpubParser = require('../../server/core/epub/EpubParser');
 const { makeEpubZip } = require('../helpers/epub');
 const { makeTmpDir, cleanup } = require('../helpers/tmpdir');
 const { readArchiveEntry, listArchiveEntries } = require('../../server/core/book/bookImages');
+const { sanitizeHtml } = require('../../server/core/sanitize');
 const fs = require('fs-extra');
 const path = require('path');
 
@@ -104,4 +105,26 @@ test('EpubParser: пустой OPF → {}', () => {
     parser.fromString('<?xml version="1.0"?><package/>', {lowerCase: true});
     const bi = parser.bookInfo();
     assert.deepStrictEqual(bi, {});
+});
+
+test('EpubParser.bookInfo: dc:description с entities — annotation raw, annotationHtml decoded+sanitized', () => {
+    const parser = new EpubParser();
+    parser.fromString(
+        '<package><metadata>' +
+            '<dc:title>T</dc:title>' +
+            '<dc:description>&lt;div&gt;text&lt;script&gt;alert(1)&lt;/script&gt;&lt;/div&gt;</dc:description>' +
+        '</metadata></package>',
+        { lowerCase: true, pickNode: route => route.indexOf('package/metadata') === 0 || route === 'package' }
+    );
+
+    const info = parser.bookInfo();
+
+    // raw: entities сохранены как в OPF (симметрия с Fb2Parser.annotation)
+    assert.equal(
+        info.titleInfo.annotation,
+        '&lt;div&gt;text&lt;script&gt;alert(1)&lt;/script&gt;&lt;/div&gt;'
+    );
+
+    // clean: entities декодированы (he), теги вне whitelist удалены (sanitizeHtml)
+    assert.equal(info.titleInfo.annotationHtml, 'text');
 });

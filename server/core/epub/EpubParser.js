@@ -1,4 +1,6 @@
 const XmlParser = require('../xml/XmlParser');
+const he = require('he');
+const { sanitizeHtml } = require('../sanitize');
 const { buildInfoList, buildDesc } = require('../book/bookInfoMapping');
 
 // epub: OPF (package/metadata) → bookInfo-структура (как Fb2Parser.bookInfo())
@@ -40,7 +42,7 @@ class EpubParser extends XmlParser {
         const description = text('dc:description');
         titleInfo.annotation = description;
         titleInfo.annotationXml = null;
-        titleInfo.annotationHtml = description;
+        titleInfo.annotationHtml = sanitizeHtml(he.decode(description || ''));
 
         // series: calibre → epub3
         let seqName = null;

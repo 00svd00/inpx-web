@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const zlib = require('zlib');
 
 const SevenZipHelper = require('./SevenZipHelper');
+const { sanitizeHtml } = require('./sanitize');
 
 class AuthorBioReader {
     constructor(config, db) {
@@ -65,7 +66,7 @@ class AuthorBioReader {
         let html = null;
         try {
             const buf = await this.archive.extract(archivePath, hash);
-            html = buf.toString('utf8');
+            html = sanitizeHtml(buf.toString('utf8'));
         } catch (e) {
             html = null;
         }

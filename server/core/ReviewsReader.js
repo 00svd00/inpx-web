@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const zlib = require('zlib');
 
 const SevenZipHelper = require('./SevenZipHelper');
+const { sanitizeHtml } = require('./sanitize');
 
 class ReviewsReader {
     constructor(config, db) {
@@ -86,8 +87,13 @@ class ReviewsReader {
             try {
                 const buf = await this.archive.extract(archivePath, key);
                 const arr = JSON.parse(buf.toString('utf8'));
-                if (Array.isArray(arr))
+                if (Array.isArray(arr)) {
+                    for (const r of arr) {
+                        if (r && typeof r.text === 'string')
+                            r.text = sanitizeHtml(r.text);
+                    }
                     result.reviews.push(...arr);
+                }
             } catch (e) {
                 // файл мог быть удалён — пропускаем
             }
