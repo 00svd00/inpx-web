@@ -20,6 +20,7 @@ const log = new (require('./AppLogger'))().log;//singleton
 const utils = require('./utils');
 const genreTree = require('./genres');
 const Fb2Helper = require('./fb2/Fb2Helper');
+const EpubHelper = require('./epub/EpubHelper');
 const { extractEpubCover } = require('./epub/epubCover');
 
 // 7z read and covers
@@ -60,6 +61,7 @@ class WebWorker {
             
             this.inpxHashCreator = new InpxHashCreator(config);
             this.fb2Helper = new Fb2Helper();
+            this.epubHelper = new EpubHelper();
             this.inpxFileHash = '';
 
             this.wState = this.workerState.getControl('server_state');
@@ -705,13 +707,13 @@ class WebWorker {
 
                 result.book = book;
                 result.cover = '';
-                result.fb2 = false;
+                result.bookInfo = null;
                 let parser = null;
 
                 if (book.ext == 'fb2') {
                     const {fb2, cover, coverExt} = await this.fb2Helper.getDescAndCover(bookFile);
                     parser = fb2;
-                    result.fb2 = fb2.rawNodes;
+                    result.bookInfo = fb2.bookInfo();
 
                     if (cover) {
                         result.cover = `${this.config.bookPathStatic}/${hash}${coverExt}`;
@@ -730,6 +732,9 @@ class WebWorker {
                         result.coverType = cover.ext === '.png' ? 'image/png' : 'image/jpeg';
                         await fs.writeFile(`${bookFile}${cover.ext}`, cover.buffer);
                     }
+                    const info = await this.epubHelper.getBookInfo(bookFile);
+                    if (info)
+                        result.bookInfo = info;
                 }
 
                 Object.assign(info, result);
@@ -753,7 +758,8 @@ class WebWorker {
                 if (tmpInfo.cover)
                     coverFile = `${this.config.publicFilesDir}${tmpInfo.cover}`;
 
-                if (book.id != tmpInfo.book.id || (coverFile && !await fs.pathExists(coverFile))) {
+                if (book.id != tmpInfo.book.id || (coverFile && !await fs.pathExists(coverFile))
+                    || !tmpInfo.bookInfo) {
                     await restoreBookInfo(bookInfo);
                 } else {
                     bookInfo = tmpInfo;

@@ -3,7 +3,7 @@ const _ = require('lodash');
 const dayjs = require('dayjs');
 
 const BasePage = require('./BasePage');
-const Fb2Parser = require('../fb2/Fb2Parser');
+const { buildInfoList } = require('../book/bookInfoMapping');
 const { bookFormats } = require('../book/bookFormats');
 const { isAvailable, parseExternalKey } = require('../externalTools');
 
@@ -181,20 +181,19 @@ class BookPage extends BasePage {
                 let content = '';
                 let ann = '';
                 let info = '';
-                //fb2 info
-                if (bookInfo.fb2) {
-                    const parser = new Fb2Parser(bookInfo.fb2);
-                    const infoObj = parser.bookInfo();
+                //book info (fb2/epub — единая структура bookInfo)
+                if (bookInfo.bookInfo) {
+                    const infoObj = bookInfo.bookInfo;
 
                     if (infoObj.titleInfo) {
-                        //author fb2Info
-                        if (!e.author && infoObj.titleInfo.author.length) {
+                        //author (если нет в book)
+                        if (!e.author && infoObj.titleInfo.author && infoObj.titleInfo.author.length) {
                             e.author = infoObj.titleInfo.author.map(a => ({name: a}));
                         }
 
                         ann = infoObj.titleInfo.annotationHtml || '';
                         const self = this;
-                        const infoList = parser.bookInfoList(infoObj, {
+                        const infoList = buildInfoList(infoObj, {
                             valueToString(value, nodePath, origVTS) {//eslint-disable-line no-unused-vars
                                 if ((nodePath == 'titleInfo/genre' || nodePath == 'srcTitleInfo/genre') && value) {
                                     return self.convertGenres(value);
@@ -204,7 +203,8 @@ class BookPage extends BasePage {
                             },
                         });
 
-                        info += this.htmlInfo('Fb2 инфо', infoList);
+                        const infoTitle = (bookInfo.book.ext === 'epub' ? 'Epub инфо' : 'Fb2 инфо');
+                        info += this.htmlInfo(infoTitle, infoList);
                     }
                 }
 

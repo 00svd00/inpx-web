@@ -1,4 +1,5 @@
 const XmlParser = require('../xml/XmlParser');
+const { buildInfoList } = require('../book/bookInfoMapping');
 
 class Fb2Parser extends XmlParser {
     get xlinkNS() {
@@ -158,109 +159,7 @@ class Fb2Parser extends XmlParser {
     }
 
     bookInfoList(bookInfo, options = {}) {
-        let {
-            correctMapping = false,
-            valueToString = false,
-        } = options;
-
-        if (!correctMapping)
-            correctMapping = mapping => mapping;
-
-        const myValueToString = (value, nodePath, origVTS) => {//eslint-disable-line no-unused-vars
-            if (nodePath == 'titleInfo/sequence' 
-                || nodePath == 'srcTitleInfo/sequence' 
-                || nodePath == 'publishInfo/sequence')
-                return value.map(v => [v.name, v.num].filter(s => s).join(' #')).join(', ');
-
-            if (typeof(value) === 'string') {
-                return value;
-            } else if (Array.isArray(value)) {
-                return value.join(', ');
-            } else if (typeof(value) === 'object') {
-                return JSON.stringify(value);
-            }
-
-            return value;
-        };
-
-        if (!valueToString)
-            valueToString = myValueToString;
-
-        let mapping = [
-            {name: 'titleInfo', label: 'Общая информация', value: [
-                {name: 'author', label: 'Автор(ы)'},
-                {name: 'bookTitle', label: 'Название'},
-                {name: 'sequence', label: 'Серия'},
-                {name: 'genre', label: 'Жанр'},
-
-                {name: 'date', label: 'Дата'},
-                {name: 'lang', label: 'Язык книги'},
-                {name: 'srcLang', label: 'Язык оригинала'},
-                {name: 'translator', label: 'Переводчик(и)'},
-                {name: 'keywords', label: 'Ключевые слова'},
-            ]},
-            {name: 'srcTitleInfo', label: 'Информация о произведении на языке оригинала', value: [
-                {name: 'author', label: 'Автор(ы)'},
-                {name: 'bookTitle', label: 'Название'},
-                {name: 'sequence', label: 'Серия'},
-                {name: 'genre', label: 'Жанр'},
-
-                {name: 'date', label: 'Дата'},
-                {name: 'lang', label: 'Язык книги'},
-                {name: 'srcLang', label: 'Язык оригинала'},
-                {name: 'translator', label: 'Переводчик(и)'},
-                {name: 'keywords', label: 'Ключевые слова'},
-            ]},
-            {name: 'publishInfo', label: 'Издательская информация', value: [
-                {name: 'bookName', label: 'Название'},
-                {name: 'publisher', label: 'Издательство'},
-                {name: 'city', label: 'Город'},
-                {name: 'year', label: 'Год'},
-                {name: 'isbn', label: 'ISBN'},
-                {name: 'sequence', label: 'Серия'},
-            ]},
-            {name: 'documentInfo', label: 'Информация о документе (OCR)', value: [
-                {name: 'author', label: 'Автор(ы)'},
-                {name: 'programUsed', label: 'Программа'},
-                {name: 'date', label: 'Дата'},
-                //srcUrl = []
-                {name: 'id', label: 'ID'},
-                {name: 'version', label: 'Версия'},
-                {name: 'srcOcr', label: 'Автор источника'},
-                {name: 'historyHtml', label: 'История'},
-                {name: 'publisher', label: 'Правообладатели'},
-            ]},
-        ];
-
-        mapping = correctMapping(mapping);
-        bookInfo = (bookInfo ? bookInfo : this.bookInfo());
-
-        //заполняем mapping
-        let result = [];
-        for (const item of mapping) {
-            const itemOut = {name: item.name, label: item.label, value: []};
-            const info = bookInfo[item.name];
-            if (!info)
-                continue;
-
-            for (const subItem of item.value) {
-                if (info[subItem.name] !== null) {
-                    const subItemOut = {
-                        name: subItem.name,
-                        label: subItem.label,
-                        value: valueToString(info[subItem.name], `${item.name}/${subItem.name}`, myValueToString),
-                    };
-
-                    if (subItemOut.value)
-                        itemOut.value.push(subItemOut);
-                }
-            }
-
-            if (itemOut.value.length)
-                result.push(itemOut);
-        }
-
-        return result;
+        return buildInfoList(bookInfo, options);
     }
 
     toHtml(xmlString) {

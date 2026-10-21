@@ -38,7 +38,7 @@
                             inline-label
                             class="bg-grey-4 text-grey-7"
                         >
-                            <q-tab v-if="fb2.length" name="fb2" label="Fb2 инфо" />
+                            <q-tab v-if="fb2.length" name="fb2" :label="infoTabLabel" />
                             <q-tab name="inpx" label="Inpx инфо" />
                             <q-tab v-if="reviewsAvailable" name="reviews" :label="reviewsTabLabel" />
                             <q-tab v-if="authorsBioAvailable" name="authors" :label="authorsTabLabel" />
@@ -158,7 +158,7 @@
 import vueComponent from '../../vueComponent.js';
 
 import Dialog from '../../share/Dialog.vue';
-import Fb2Parser from '../../../../server/core/fb2/Fb2Parser';
+import { buildInfoList } from '../../../../server/core/book/bookInfoMapping';
 import * as utils from '../../../share/utils';
 import _ from 'lodash';
 
@@ -411,30 +411,23 @@ class BookInfoDialog {
         if (bookInfo.cover)
             this.coverSrc = bookInfo.cover;
 
-        //fb2
-        if (bookInfo.fb2) {
-            const parser = new Fb2Parser(bookInfo.fb2);
+        //bookInfo
+        if (bookInfo.bookInfo) {
+            const bi = bookInfo.bookInfo;
+            const ti = bi.titleInfo || {};
 
-            const infoObj = parser.bookInfo();
-
-            if (infoObj.titleInfo) {
-                let ann = infoObj.titleInfo.annotationHtml;
-                if (ann) {
-                    ann = ann.replace(/<p>/g, `<p class="p-annotation">`);
-                    this.annotation = ann;
-                }
+            if (ti.annotationHtml) {
+                let ann = ti.annotationHtml.replace(/<p>/g, `<p class="p-annotation">`);
+                this.annotation = ann;
             }
 
             const self = this;
-            this.fb2 = parser.bookInfoList(infoObj, {
-                valueToString(value, nodePath, origVTS) {//eslint-disable-line no-unused-vars
+            this.fb2 = buildInfoList(bi, {
+                valueToString(value, nodePath, origVTS) {
                     if (nodePath == 'documentInfo/historyHtml' && value)
                         return value.replace(/<p>/g, `<p class="p-history">`);
-
-                    if ((nodePath == 'titleInfo/genre' || nodePath == 'srcTitleInfo/genre') && value) {
+                    if ((nodePath == 'titleInfo/genre' || nodePath == 'srcTitleInfo/genre') && value)
                         return self.convertGenres(value);
-                    }
-
                     return origVTS(value, nodePath);
                 },
             });
@@ -443,6 +436,11 @@ class BookInfoDialog {
         //book
         if (bookInfo.book)
             this.book = bookInfo.book;
+    }
+
+    get infoTabLabel() {
+        const ext = (this.book && this.book.ext) || '';
+        return ext ? `${ext.toUpperCase()} инфо` : 'Инфо';
     }
 
     posterClick() {

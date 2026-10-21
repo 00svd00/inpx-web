@@ -16,7 +16,16 @@ function bookInfo(uid = 'u', ext = 'fb2') {
             book: {title: 'T', author: 'A', genre: 'sf', ext, lang: 'ru', series: '', serno: 0, del: 0, size: 0, date: '2024-01-01', file: 'f', folder: 'fo', libid: '', insno: 0, librate: 0, keywords: ''},
             link: '/book/hash',
             cover: '',
-            fb2: false,
+            bookInfo: {
+                titleInfo: {
+                    author: ['A'],
+                    bookTitle: 'T',
+                    genre: ['sf'],
+                    lang: 'ru',
+                    date: '2024-01-01',
+                    annotationHtml: '<p>Ann</p>',
+                },
+            },
         },
     };
 }
