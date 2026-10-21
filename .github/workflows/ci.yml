@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ ci-experimental ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full libjxl-tools zip unzip
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build client
+        run: npm run build:client
+
+      - name: Prepkg linux
+        run: node build/prepkg.js linux
+
+      - name: Build bundle
+        run: npm run build:bundle
+
+      - name: Smoke test
+        run: npm run test:smoke
