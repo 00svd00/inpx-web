@@ -22,7 +22,14 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y p7zip-full libjxl-tools zip unzip
+          sudo apt-get install -y p7zip-full zip unzip lzip
+
+      - name: Install libjxl 0.12.0 (static, from GitHub releases)
+        run: |
+          wget -q https://github.com/libjxl/libjxl/releases/download/v0.12.0/jxl-linux-x86_64-static.tar.lz
+          tar --lzip -xf jxl-linux-x86_64-static.tar.lz
+          sudo install -m 0755 tools/djxl /usr/local/bin/djxl
+          djxl --version
 
       - name: Install npm dependencies
         run: npm ci
