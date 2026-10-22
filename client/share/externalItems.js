@@ -18,7 +18,7 @@ function getExternalItems(external, bookExt) {
     const result = [];
 
     for (const [key, item] of Object.entries(external)) {
-        if (!item || !item.active || !item.cmd)
+        if (!item || !item.active)
             continue;
         if (Array.isArray(item.onlyExt) && item.onlyExt.length) {
             if (!item.onlyExt.map(normExt).includes(be))

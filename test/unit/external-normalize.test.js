@@ -50,3 +50,28 @@ test('normalizeExternal: null/undefined → {}', () => {
     assert.deepStrictEqual(normalizeExternal(null), {});
     assert.deepStrictEqual(normalizeExternal(undefined), {});
 });
+
+test('normalizeExternal: link без cmd — валиден (active: true)', () => {
+    const ext = { webReader: { active: true, link: 'fbreader/?url=${DOWNLOAD_URI}', type: 'link' } };
+    normalizeExternal(ext);
+    assert.strictEqual(ext.webReader.active, true);
+});
+
+test('normalizeExternal: link без link — active: false', () => {
+    const ext = { webReader: { active: true, type: 'link' } };
+    normalizeExternal(ext);
+    assert.strictEqual(ext.webReader.active, false);
+});
+
+test('normalizeExternal: link с пустым link — active: false', () => {
+    const ext = { webReader: { active: true, link: '   ', type: 'link' } };
+    normalizeExternal(ext);
+    assert.strictEqual(ext.webReader.active, false);
+});
+
+test('normalizeExternal: cmdExport без cmd — active: false', () => {
+    // нерабочая запись: cmdExport выполняется только после cmd
+    const ext = { exp: { active: true, cmdExport: 'mail ...', type: 'cmd' } };
+    normalizeExternal(ext);
+    assert.strictEqual(ext.exp.active, false);
+});

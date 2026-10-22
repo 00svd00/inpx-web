@@ -15,12 +15,17 @@ test('getExternalItems: пустой/нет external → []', () => {
     assert.deepStrictEqual(getExternalItems({}, 'fb2'), []);
 });
 
+const { normalizeExternal } = require('../../server/core/externalTools');
+
 test('getExternalItems: active/cmd', () => {
+    // external уже нормализован (normalizeExternal);
+    // клиент доверяет active и не проверяет cmd
     const external = {
-        a: {active: true, cmd: 'x', title: 'A'},
-        b: {active: false, cmd: 'y', title: 'B'},
-        c: {active: true, title: 'C'},
+        a: {active: true, cmd: 'x', type: 'download', title: 'A'},
+        b: {active: false, cmd: 'y', type: 'download', title: 'B'},
+        c: {active: true, title: 'C'},   // без type/cmd → normalizeExternal: active: false
     };
+    normalizeExternal(external);
     const items = getExternalItems(external, 'fb2');
     assert.deepStrictEqual(items.map(i => i.key), ['a']);
     assert.strictEqual(items[0].title, 'A');
@@ -51,4 +56,13 @@ test('getExternalItems: title fallback key, hint', () => {
     const items = getExternalItems(external, 'fb2');
     assert.strictEqual(items[0].title, 'fbz');
     assert.strictEqual(items[0].hint, 'h');
+});
+
+test('getExternalItems: link (active) — показывается', () => {
+    const external = {
+        webReader: { active: true, link: 'fbreader/?url=${DOWNLOAD_URI}', type: 'link', title: 'Web' },
+    };
+    normalizeExternal(external);
+    const items = getExternalItems(external, 'fb2');
+    assert.deepStrictEqual(items.map(i => i.key), ['webReader']);
 });

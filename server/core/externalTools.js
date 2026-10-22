@@ -18,7 +18,7 @@ function parseExternalKey(fileType) {
     return (m ? m[1] : null);
 }
 
-const VALID_TYPES = ['download', 'gui', 'cmd'];
+const VALID_TYPES = ['download', 'gui', 'cmd', 'link'];
 
 // Нормализация конфига external на старте: невалидные записи → active: false,
 // мягкие поля (onlyExt/ext/title/hint/debug) приводятся к ожидаемому виду.
@@ -37,13 +37,22 @@ function normalizeExternal(external) {
             external[key] = { active: false };
             continue;
         }
-        if (typeof item.cmd !== 'string' || item.cmd.trim() === '') {
-            item.active = false;
-            continue;
-        }
         if (!VALID_TYPES.includes(item.type)) {
             item.active = false;
             continue;
+        }
+
+        // обязательное поле зависит от type: link → link, остальные → cmd
+        if (item.type === 'link') {
+            if (typeof item.link !== 'string' || item.link.trim() === '') {
+                item.active = false;
+                continue;
+            }
+        } else {
+            if (typeof item.cmd !== 'string' || item.cmd.trim() === '') {
+                item.active = false;
+                continue;
+            }
         }
 
         // мягкие нормализации
