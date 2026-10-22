@@ -169,6 +169,8 @@ async function init() {
         log(`externalToolsConfig: ${config.externalToolsConfig}`);
         try {
             config.external = JSON.parse(await fs.readFile(config.externalToolsConfig, 'utf8'));
+            const { normalizeExternal } = require('./core/externalTools');
+            normalizeExternal(config.external);
         } catch(e) {
             log(LM_ERR, `externalToolsConfig: ${e.message}`);
             config.external = {};

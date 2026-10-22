@@ -5,7 +5,7 @@ const dayjs = require('dayjs');
 const BasePage = require('./BasePage');
 const { buildInfoList } = require('../book/bookInfoMapping');
 const { bookFormats } = require('../book/bookFormats');
-const { isAvailable, parseExternalKey } = require('../externalTools');
+const { isAvailable } = require('../externalTools');
 
 class BookPage extends BasePage {
     constructor(config) {
@@ -274,8 +274,6 @@ class BookPage extends BasePage {
                 if (this.config.external) {
                     const bookExt = (bookInfo.book.ext || '').toLowerCase();
                     for (const [key, ext] of Object.entries(this.config.external)) {
-                        if (!parseExternalKey('ext-' + key))   //валидность ключа
-                            continue;
                         if (!isAvailable(this.config, key, bookExt))
                             continue;
 

@@ -13,10 +13,55 @@ const log = new (require('./AppLogger'))().log; // singleton
 function normExt(v) {
     return String(v || '').toLowerCase().replace(/^\./, '');
 }
-// правило ключа синхронизировано с client/share/externalItems.js (KEY_RE)
 function parseExternalKey(fileType) {
     const m = /^ext-([0-9a-z_]+)$/i.exec(String(fileType || ''));
     return (m ? m[1] : null);
+}
+
+const VALID_TYPES = ['download', 'gui', 'cmd'];
+
+// Нормализация конфига external на старте: невалидные записи → active: false,
+// мягкие поля (onlyExt/ext/title/hint/debug) приводятся к ожидаемому виду.
+// После этого клиенту не нужна валидация ключа — только фильтр по active/cmd/onlyExt.
+function normalizeExternal(external) {
+    if (!external || typeof external !== 'object')
+        return {};
+
+    for (const [key, item] of Object.entries(external)) {
+        if (!/^[0-9a-z_]+$/i.test(key)) {
+            if (item && typeof item === 'object')
+                item.active = false;
+            continue;
+        }
+        if (!item || typeof item !== 'object') {
+            external[key] = { active: false };
+            continue;
+        }
+        if (typeof item.cmd !== 'string' || item.cmd.trim() === '') {
+            item.active = false;
+            continue;
+        }
+        if (!VALID_TYPES.includes(item.type)) {
+            item.active = false;
+            continue;
+        }
+
+        // мягкие нормализации
+        if (!Array.isArray(item.onlyExt)) {
+            item.onlyExt = [];
+        } else {
+            item.onlyExt = item.onlyExt.map(normExt).filter(v => v !== '');
+        }
+        if (typeof item.ext !== 'string')
+            item.ext = undefined;
+        if (typeof item.title !== 'string')
+            item.title = undefined;
+        if (typeof item.hint !== 'string')
+            item.hint = undefined;
+        item.debug = !!item.debug;
+    }
+
+    return external;
 }
 
 function resolveExternalByFileType(config, fileType, params) {
@@ -140,4 +185,4 @@ function runGui(t) {
     }
 }
 
-module.exports = { isAvailable, resolveExternal, resolveExternalByFileType, parseExternalKey, runCmd, runCmdExport, runGui, normExt };
+module.exports = { isAvailable, resolveExternal, resolveExternalByFileType, parseExternalKey, normalizeExternal, runCmd, runCmdExport, runGui, normExt };
