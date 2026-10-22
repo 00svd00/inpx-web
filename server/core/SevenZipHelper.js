@@ -84,25 +84,26 @@ class SevenZipHelper {
      * Имена нормализованы: '/' на всех платформах (в т.ч. Windows).
      */
     async list(archivePath) {
-        const out = await this._exec(['l', '-ba', archivePath], {encoding: 'utf8'});
+        const out = await this._exec(['l', '-slt', archivePath], {encoding: 'utf8'});
         const result = [];
         const baseName = path.basename(archivePath);
+        let inEntries = false;
 
         for (const line of out.split('\n')) {
             const trimmed = line.trim();
-            if (!trimmed)
+            if (trimmed === '----------') {
+                inEntries = true;
                 continue;
-
-            const parts = trimmed.split(/\s+/);
-            let name = parts[parts.length - 1];
-
-            if (!name || name === baseName)
+            }
+            if (!inEntries)
                 continue;
-
-            // 7z на Windows выводит пути с '\', нормализуем в '/'
-            name = name.replace(/\\/g, '/');
-
-            result.push(name);
+            if (trimmed.startsWith('Path = ')) {
+                let name = trimmed.slice('Path = '.length).trim();
+                if (!name || name === baseName)
+                    continue;
+                name = name.replace(/\\/g, '/');
+                result.push(name);
+            }
         }
 
         return result;
