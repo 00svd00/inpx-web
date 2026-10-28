@@ -42,7 +42,7 @@ class DbSearcher {
         for (const f of this.recStruct) {
             result.push(q[f.field]);
         }
-
+        result.push(q.ratingCount || ''); // виртуальное поле (reviews_index.declaredCount)
         return JSON.stringify(result);
     }
 
@@ -336,6 +336,7 @@ class DbSearcher {
             idsArr.push(ids);
         }
 
+        let resultIds;
         if (idsArr.length > 1) {
             //ищем пересечение множеств
             let proc = 0;
@@ -358,12 +359,28 @@ class DbSearcher {
                 inter = newInter;
             }
 
-            return new Uint32Array(inter);
+            resultIds = new Uint32Array(inter);
         } else if (idsArr.length == 1) {            
-            return idsArr[0];
+            resultIds = idsArr[0];
         } else {
-            return false;
+            resultIds = false;
         }
+
+        // фильтр по числу оценок (reviews_index.declaredCount)
+        if (query.ratingCount) {
+            if (!resultIds) {
+                // нет других критериев — начинаем со всех книг
+                const all = await db.select({
+                    table: 'book',
+                    rawResult: true,
+                    where: `return new Uint32Array(@all())`,
+                });
+                resultIds = all[0].rawResult;
+            }
+            resultIds = await this.filterByRatingCount(resultIds, query.ratingCount);
+        }
+
+        return resultIds;
     }
 
     async fillDbConfig() {
@@ -709,7 +726,11 @@ class DbSearcher {
             });
 
             bookIds = rows[0].rawResult;
-    
+
+            // фильтр по числу оценок (reviews_index.declaredCount)
+            if (query.ratingCount)
+                bookIds = await this.filterByRatingCount(bookIds, query.ratingCount);
+
             await this.putCached(bookKey, bookIds);
         }
 
@@ -932,6 +953,98 @@ class DbSearcher {
         } finally {
             this.searchFlag--;
         }
+    }
+
+    // парсинг ratingCount: 'N' | 'N..' | '..M' | 'N..M' → {from, to} или null
+    parseRatingCount(spec) {
+        if (!spec)
+            return null;
+
+        const s = String(spec).trim();
+        if (!s)
+            return null;
+
+        const parts = s.split('..');
+        if (parts.length === 1) {
+            const n = parseInt(parts[0], 10);
+            if (isNaN(n))
+                return null;
+            return {from: n, to: n};
+        }
+        if (parts.length === 2) {
+            const from = parts[0] ? parseInt(parts[0], 10) : null;
+            const to = parts[1] ? parseInt(parts[1], 10) : null;
+            if ((from !== null && isNaN(from)) || (to !== null && isNaN(to)))
+                return null;
+            if (from === null && to === null)
+                return null;
+            return {from, to};
+        }
+        return null;
+    }
+
+    // фильтр bookIds по числу оценок (reviews_index.declaredCount)
+    async filterByRatingCount(bookIds, ratingSpec) {
+        const range = this.parseRatingCount(ratingSpec);
+        if (!range)
+            return bookIds; // невалидно — не фильтруем
+
+        const db = this.db;
+
+        // 1) reviews_index → Set folder#file, где declaredCount в диапазоне
+        let keysRows;
+        try {
+            keysRows = await db.select({
+                table: 'reviews_index',
+                rawResult: true,
+                where: `
+                    const from = ${range.from === null ? 'null' : db.esc(range.from)};
+                    const to = ${range.to === null ? 'null' : db.esc(range.to)};
+                    const keys = [];
+                    for (const id of @all()) {
+                        const row = @unsafeRow(id);
+                        const c = row.declaredCount || 0;
+                        if ((from === null || c >= from) && (to === null || c <= to))
+                            keys.push(row._uid);
+                    }
+                    return keys;
+                `,
+            });
+        } catch (e) {
+            // reviews_index не открыт / недоступен — не фильтруем
+            return bookIds;
+        }
+        const keysSet = new Set(keysRows[0].rawResult);
+        if (!keysSet.size)
+            return new Uint32Array(0);
+
+        // 2) bookIds → батчи по 5000, @unsafeRow, фильтр в JS по keysSet
+        const result = [];
+        const chunkSize = 5000;
+        const arr = Array.from(bookIds);
+        for (let i = 0; i < arr.length; i += chunkSize) {
+            const chunk = arr.slice(i, i + chunkSize);
+            const rows = await db.select({
+                table: 'book',
+                rawResult: true,
+                where: `
+                    const result = [];
+                    for (const id of ${db.esc(chunk)}) {
+                        const row = @unsafeRow(id);
+                        result.push({id, folder: row.folder, file: row.file, ext: row.ext});
+                    }
+                    return result;
+                `,
+            });
+            for (const r of rows[0].rawResult) {
+                const key = `${(r.folder || '').replace(/\.zip$/i, '.7z')}#${r.file}.${r.ext}`;
+                if (keysSet.has(key))
+                    result.push(r.id);
+            }
+            await utils.processLoop();
+        }
+
+        return new Uint32Array(result);
     }
 
     async getCached(key) {

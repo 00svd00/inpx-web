@@ -174,6 +174,23 @@
 
                             <div class="q-mx-xs" />
                             <q-input
+                                v-if="reviewsEnabled"
+                                v-model="ratingCountNames" :maxlength="inputMaxLength" :debounce="inputDebounce"
+                                class="q-mt-xs col-2" :bg-color="inputBgColor()" input-style="cursor: pointer" style="min-width: 140px;"
+                                label="Число оценок" stack-label outlined dense clearable readonly
+                                @click.stop.prevent="selectRatingCount"
+                            >
+                                <template v-if="search.ratingCount" #append>
+                                    <q-icon name="la la-times-circle" class="q-field__focusable-action" @click.stop.prevent="search.ratingCount = ''" />
+                                </template>
+
+                                <q-tooltip v-if="ratingCountNames && showTooltips" :delay="500" anchor="bottom middle" content-style="font-size: 80%" max-width="400px">
+                                    {{ ratingCountNames }}
+                                </q-tooltip>
+                            </q-input>
+
+                            <div class="q-mx-xs" />
+                            <q-input
                                 v-model="search.ext" :maxlength="inputMaxLength" :debounce="inputDebounce"
                                 class="q-mt-xs col-2" :bg-color="inputBgColor()" input-style="cursor: pointer" style="min-width: 140px;" label="Тип файла" stack-label outlined dense clearable readonly
                                 @click.stop.prevent="selectExt"
@@ -348,7 +365,8 @@
         <SelectDateDialog v-model="selectDateDialogVisible" v-model:date="search.date" />
         <SelectExtDialog v-model="selectExtDialogVisible" v-model:ext="search.ext" :ext-list="extList" />        
         <BookInfoDialog v-model="bookInfoDialogVisible" :book-info="bookInfo" :genre-map="genreMap" />
-        <SelectExtSearchDialog v-model="selectExtSearchDialogVisible" v-model:ext-search="extSearch" />        
+        <SelectExtSearchDialog v-model="selectExtSearchDialogVisible" v-model:ext-search="extSearch" />       
+        <SelectRatingCountDialog v-model="selectRatingCountDialogVisible" v-model:ratingCount="search.ratingCount" /> 
     </div>
 </template>
 
@@ -370,6 +388,7 @@ import SelectDateDialog from './SelectDateDialog/SelectDateDialog.vue';
 import SelectExtDialog from './SelectExtDialog/SelectExtDialog.vue';
 import BookInfoDialog from './BookInfoDialog/BookInfoDialog.vue';
 import SelectExtSearchDialog from './SelectExtSearchDialog/SelectExtSearchDialog.vue';
+import SelectRatingCountDialog from './SelectRatingCountDialog/SelectRatingCountDialog.vue';
 
 import FavoritesList from './FavoritesList/FavoritesList.vue';
 
@@ -407,6 +426,7 @@ const componentOptions = {
         SelectExtDialog,
         BookInfoDialog,
         SelectExtSearchDialog,
+        SelectRatingCountDialog,
         FavoritesList,
         Dialog,
         DivBtn
@@ -524,6 +544,7 @@ class Search {
     selectExtDialogVisible = false;
     bookInfoDialogVisible = false;
     selectExtSearchDialogVisible = false;
+    selectRatingCountDialogVisible = false;
 
     pageCount = 1;    
 
@@ -589,7 +610,7 @@ class Search {
         this.commit = this.$store.commit;
         this.api = this.$root.api;
 
-        this.generateDefaults(this.search, ['author', 'series', 'title', 'genre', 'lang', 'date', 'librate', 'ext']);
+        this.generateDefaults(this.search, ['author', 'series', 'title', 'genre', 'lang', 'date', 'librate', 'ext', 'ratingCount']);
         this.search.setDefaults(this.search);
 
         this.loadSettings();
@@ -711,6 +732,10 @@ class Search {
         return this.$store.state.settings;
     }
 
+    get reviewsEnabled() {
+        return !!(this.config.features && this.config.features.reviewsEnabled);
+    }
+
     get genreNames() {
         let result = [];
         const genre = this.search.genre.split(',');
@@ -733,6 +758,21 @@ class Search {
         }
 
         return result.join(', ');
+    }
+
+    get ratingCountNames() {
+        const v = this.search.ratingCount;
+        if (!v)
+            return '';
+
+        const parts = v.split('..');
+        if (parts.length === 1)
+            return parts[0];
+        if (!parts[0])
+            return `до ${parts[1]}`;
+        if (!parts[1])
+            return `от ${parts[0]}`;
+        return `${parts[0]} — ${parts[1]}`;
     }
 
     get listOptions() {
@@ -763,6 +803,7 @@ class Search {
         result.push(s.genre ? 'Жанр' : '');
         result.push(s.date ? 'Дата поступления' : '');
         result.push(s.librate ? 'Оценка' : '');
+        result.push(s.ratingCount ? 'Число оценок' : '');
         result.push(s.ext ? 'Тип файла' : '');
 
         return result.filter(s => s).join(', ');
@@ -1009,6 +1050,11 @@ class Search {
         this.selectLibRateDialogVisible = true;
     }
 
+    selectRatingCount() {
+        this.hideTooltip();
+        this.selectRatingCountDialogVisible = true;
+    }
+
     selectExt() {
         this.hideTooltip();
         this.selectExtDialogVisible = true;
@@ -1157,6 +1203,7 @@ class Search {
             date: query.date,
             librate: query.librate,
             ext: query.ext,
+            ratingCount: query.ratingCount,
 
             page: parseInt(query.page, 10),
             limit: parseInt(query.limit, 10) || this.search.limit,
