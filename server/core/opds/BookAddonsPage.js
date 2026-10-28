@@ -96,7 +96,29 @@ class BookAddonsPage extends BasePage {
                 );
             }
 
-            // 2. рецензии — только если включены и есть данные
+            // 2. навигация: другие книги автора/серии
+            if (bookInfo) {
+                const b = bookInfo.book;
+                if (b.author) {
+                    const firstAuthor = b.author.split(',')[0].trim();
+                    if (firstAuthor) {
+                        entries.push(this.makeEntry({
+                            id: `author-books-${bookUid}`,
+                            title: `Другие книги: ${firstAuthor}`,
+                            link: this.navLink({href: `/author?author=${encodeURIComponent('=' + firstAuthor)}`}),
+                        }));
+                    }
+                }
+                if (b.series) {
+                    entries.push(this.makeEntry({
+                        id: `series-books-${bookUid}`,
+                        title: `Серия: ${b.series}${b.serno ? ` #${b.serno}` : ''}`,
+                        link: this.navLink({href: `/series?series=${encodeURIComponent('=' + b.series)}`}),
+                    }));
+                }
+            }
+
+            // 3. рецензии — только если включены и есть данные
             if (this.config.reviewsEnabled) {
                 let reviewsCount = null;
                 try {
@@ -121,7 +143,7 @@ class BookAddonsPage extends BasePage {
                 }
             }
 
-            // 3. об авторах — только если включено и есть данные
+            // 4. об авторах — только если включено и есть данные
             if (this.config.authorsBioEnabled) {
                 try {
                     const authors = await this.webWorker.getBookAuthors(bookUid);

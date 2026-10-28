@@ -39,6 +39,31 @@ class BookPage extends BasePage {
         return result.join(', ');
     }
 
+    // навигационные ссылки «другие книги автора/серии» (первый автор, первая серия)
+    navToRelated(bookInfo) {
+        const links = [];
+        const book = bookInfo.book;
+
+        if (book.author) {
+            const firstAuthor = book.author.split(',')[0].trim();
+            if (firstAuthor) {
+                links.push({
+                    href: `/author?author=${encodeURIComponent('=' + firstAuthor)}`,
+                    title: `Другие книги: ${firstAuthor}`,
+                });
+            }
+        }
+
+        if (book.series) {
+            links.push({
+                href: `/series?series=${encodeURIComponent('=' + book.series)}`,
+                title: `Серия: ${book.series}${book.serno ? ` #${book.serno}` : ''}`,
+            });
+        }
+
+        return links;
+    }
+
     inpxInfo(bookRec) {
         const mapping = [
             {name: 'fileInfo', label: 'Информация о файле', value: [
@@ -231,9 +256,21 @@ class BookPage extends BasePage {
 
                 //links
                 e.link = [];
+                // 1. acquisition
                 for (const [fileFormat, downHref] of Object.entries(formats))
                     e.link.push(this.downLink({href: downHref, type: `application/${fileFormat}`}));
-                // рецензии — ссылка на OPDS-каталог (дёшево)
+
+                // 2. навигация: другие книги автора/серии (всегда; subsection → plain-дубль для Tolino на автора)
+                for (const nav of this.navToRelated(bookInfo)) {
+                    e.link.push(this.makeLink({
+                        href: `${this.opdsRoot}${nav.href}`,
+                        rel: 'related',
+                        type: 'application/atom+xml;profile=opds-catalog',
+                        title: nav.title,
+                    }));
+                }
+
+                // 3. рецензии (related)
                 if (this.config.opdsBookAddonsInCard && reviewsCount && reviewsCount.declaredCount) {
                     const reviewsHref = `${this.opdsRoot}/book/reviews?uid=${encodeURIComponent(bookUid)}`;
                     let reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount})`;
@@ -250,7 +287,7 @@ class BookPage extends BasePage {
                     }));
                 }
 
-                // авторы — ссылка на OPDS-каталог (дёшево, только db.select)
+                // 4. авторы/био (related)
                 if (this.config.opdsBookAddonsInCard && this.config.authorsBioEnabled) {
                     try {
                         const authors = await this.webWorker.getBookAuthors(bookUid);
@@ -270,7 +307,7 @@ class BookPage extends BasePage {
                     }
                 }
 
-                //external tools (OPDS)
+                // 5. external tools
                 if (this.config.external) {
                     const bookExt = (bookInfo.book.ext || '').toLowerCase();
                     for (const [key, ext] of Object.entries(this.config.external)) {
@@ -291,6 +328,8 @@ class BookPage extends BasePage {
                         }));
                     }
                 }
+
+                // 6. Cover
                 if (bookInfo.cover) {
                     const coverType = bookInfo.coverType
                         || (path.extname(bookInfo.cover) == '.png' ? 'image/png' : 'image/jpeg');

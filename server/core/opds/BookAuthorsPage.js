@@ -85,6 +85,14 @@ class BookAuthorsPage extends BasePage {
                         this.imgLink({href: photoHref, type: 'image/jpeg', thumb: true}),
                     ];
 
+                    // навигация: все книги автора (related — чтобы не перехватывать entry)
+                    e.link.push(this.makeLink({
+                        href: `${this.opdsRoot}/author?author=${encodeURIComponent('=' + author.name)}`,
+                        rel: 'related',
+                        type: 'application/atom+xml;profile=opds-catalog',
+                        title: `Все книги: ${author.name}`,
+                    }));
+
                     if (bookInfo) {
                         const ext = bookInfo.book.ext || 'fb2';
                         e.link.push(this.downLink({

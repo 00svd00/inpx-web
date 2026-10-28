@@ -67,3 +67,47 @@ test('hasAddons: getBookReviewsCount бросает → authorsBio провер�
     });
     assert.strictEqual(await page.hasAddons('uid'), true);
 });
+
+test('body: навигация после карточки, до рецензий', async () => {
+    const {page} = make({
+        config: {reviewsEnabled: true, authorsBioEnabled: false},
+        ww: {
+            getBookInfo: () => ({
+                bookInfo: {
+                    book: {title: 'T', author: 'A', series: 'S', serno: 1, ext: 'fb2'},
+                    link: '/book/hash', cover: '',
+                    bookInfo: {titleInfo: {author: ['A'], bookTitle: 'T'}},
+                },
+            }),
+            getBookReviewsCount: () => ({declaredCount: 2, sum: 8}),
+        },
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/addons?uid=u'});
+
+    const iCard = xml.indexOf('book-u');
+    const iNavAuthor = xml.indexOf('/opds/author?author=');
+    const iNavSeries = xml.indexOf('/opds/series?series=');
+    const iRev = xml.indexOf('Рецензии');
+
+    assert.ok(iCard >= 0 && iNavAuthor > iCard, 'карточка раньше навигации');
+    assert.ok(iNavAuthor < iNavSeries, 'автор раньше серии');
+    assert.ok(iNavSeries < iRev, 'навигация раньше рецензий');
+});
+
+test('body: без автора/серии — нет навигационных entries', async () => {
+    const {page} = make({
+        config: {reviewsEnabled: false, authorsBioEnabled: false},
+        ww: {
+            getBookInfo: () => ({
+                bookInfo: {
+                    book: {title: 'T', author: '', series: '', serno: 0, ext: 'fb2'},
+                    link: '/book/hash', cover: '',
+                    bookInfo: null,
+                },
+            }),
+        },
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/addons?uid=u'});
+    assert.ok(!xml.includes('author-books-'));
+    assert.ok(!xml.includes('series-books-'));
+});

@@ -115,3 +115,52 @@ test('rootPathStatic учитывается в imgLink', async () => {
     const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/authors?uid=u'});
     assert.ok(xml.includes('/flibusta/author/photo?hash=h1'));
 });
+
+test('found-автор: related «Все книги», не subsection', async () => {
+    const {page} = make({
+        config: {authorsBioEnabled: true, rootPathStatic: ''},
+        ww: {
+            getBookInfo: () => bookInfo('Книга'),
+            getBookAuthors: () => [{name: 'Иванов Иван', hash: 'h1', found: true}],
+            getAuthorBio: () => '<b>bio</b>',
+        },
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/authors?uid=u'});
+
+    assert.ok(xml.includes('rel="related"'));
+    assert.ok(xml.includes('Все книги: Иванов Иван'));
+    assert.ok(xml.includes('/opds/author?author=%3D'));
+});
+
+test('не found-автор: без навигации «Все книги»', async () => {
+    const {page} = make({
+        config: {authorsBioEnabled: true, rootPathStatic: ''},
+        ww: {
+            getBookInfo: () => bookInfo(),
+            getBookAuthors: () => [{name: 'A', hash: 'h1', found: false}],
+            getAuthorBio: () => null,
+        },
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/authors?uid=u'});
+    assert.ok(!xml.includes('Все книги:'));
+});
+
+test('регресс Tolino: в entry автора нет plain-ссылки без rel (нет subsection)', async () => {
+    const {page} = make({
+        config: {authorsBioEnabled: true, rootPathStatic: ''},
+        ww: {
+            getBookInfo: () => bookInfo(),
+            getBookAuthors: () => [{name: 'A', hash: 'h1', found: true}],
+            getAuthorBio: () => null,
+        },
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/authors?uid=u'});
+
+    // все <link> в entry имеют rel=
+    const entryMatch = xml.match(/<entry>[\s\S]*?<\/entry>/);
+    assert.ok(entryMatch, 'entry expected');
+    const links = entryMatch[0].match(/<link [^>]*\/>/g) || [];
+    for (const l of links) {
+        assert.ok(/\brel="/.test(l), `plain link found (без rel): ${l}`);
+    }
+});
