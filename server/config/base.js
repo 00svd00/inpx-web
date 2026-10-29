@@ -18,6 +18,8 @@ module.exports = {
     inpxFilterFile: '',
     externalToolsConfig: '',
     external: '',
+    customOpdsFeeds: false,           // разрешить кастомные OPDS-фиды
+    customOpdsFeedsFile: '',          // путь к JSON; пусто → dataDir/custom-opds-feeds.json
     sevenZipPath: '',
     djxlPath: '',
 
@@ -51,7 +53,7 @@ module.exports = {
     opdsBookAddonsInCard: true, // true  — ссылки на рецензии/биографии прямо в карточке книги (rel="related");
     //                             false — вместо карточки отдаём промежуточный каталог, первая ссылка ведёт на карточку,
     //                             остальные — на рецензии/биографии. Если доп. материалов нет — отдаём карточку как обычно.
-    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'authorsBioEnabled', 'opdsBookAddonsInCard', 'rootPathStatic', 'favorites'],
+    webConfigParams: ['name', 'version', 'latestVersion', 'branch', 'bookReadLink', 'dbVersion', 'extendedSearch', 'latestReleaseLink', 'uiDefaults', 'external', 'reviewsEnabled', 'authorsBioEnabled', 'opdsBookAddonsInCard', 'rootPathStatic', 'favorites', 'customOpdsFeeds'],
 
     allowRemoteLib: false,
     remoteLib: false,

@@ -9,8 +9,8 @@ const BookPage = require('./BookPage');
 const BookReviewsPage = require('./BookReviewsPage');
 const BookAddonsPage = require('./BookAddonsPage');
 const FavoritesPage = require('./FavoritesPage');
-
 const BookAuthorsPage = require('./BookAuthorsPage'); //биографии авторов
+const CustomOpdsFeedPage = require('./CustomOpdsFeedPage');
 
 const OpensearchPage = require('./OpensearchPage');
 const SearchPage = require('./SearchPage');
@@ -34,8 +34,8 @@ module.exports = function(app, config) {
     const bookReviews = new BookReviewsPage(config);
     const bookAddons = new BookAddonsPage(config);
     const favorites = new FavoritesPage(config);
-
     const bookAuthors = new BookAuthorsPage(config);
+    const custom = new CustomOpdsFeedPage(config);
 
     const opensearch = new OpensearchPage(config);
     const search = new SearchPage(config);
@@ -68,7 +68,9 @@ module.exports = function(app, config) {
 
     const opds = async(req, res, next) => {
         try {
-            const page = pages.get(req.path);
+            let page = pages.get(req.path);
+            if (!page && req.path.startsWith(`${opdsRoot}/custom/`))
+                page = custom;
 
             if (page) {
                 res.set('Content-Type', 'application/atom+xml; charset=utf-8');

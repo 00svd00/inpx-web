@@ -382,6 +382,18 @@ class WebWorker {
         return result;
     }
 
+    async selectBookIds(query) {
+        this.checkMyState();
+        return await this.dbSearcher.selectBookIds(query);
+    }
+
+    async getBooksByIds(ids) {
+        this.checkMyState();
+        if (!ids || !ids.length)
+            return [];
+        return await this.db.select({table: 'book', where: `@@id(${this.db.esc(Array.from(ids))})`});
+    }
+
     async opdsQuery(from, query) {
         this.checkMyState();
 

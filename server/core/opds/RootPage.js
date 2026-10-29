@@ -4,6 +4,7 @@ const SeriesPage = require('./SeriesPage');
 const TitlePage = require('./TitlePage');
 const GenrePage = require('./GenrePage');
 const FavoritesPage = require('./FavoritesPage');
+const CustomOpdsFeedPage = require('./CustomOpdsFeedPage');
 
 class RootPage extends BasePage {
     constructor(config) {
@@ -37,6 +38,18 @@ class RootPage extends BasePage {
             this.genrePage.myEntry(),
             this.favoritesPage.myEntry(),
         ];
+
+        // кастомные OPDS-фиды
+        const feeds = await CustomOpdsFeedPage.loadCustomFeeds(this.config);
+        for (const feed of Object.values(feeds)) {
+            if (!feed.active)
+                continue;
+            result.entry.push(this.makeEntry({
+                id: `custom-${feed.id}`,
+                title: feed.name || feed.id,
+                link: this.navLink({href: `/custom/${feed.id}`}),
+            }));
+        }
 
         return this.makeBody(result, req);
     }

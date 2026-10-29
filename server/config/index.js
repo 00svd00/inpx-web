@@ -12,6 +12,8 @@ const propsToSave = [
     'inpx',
     'inpxFilterFile',
     'externalToolsConfig',
+    'customOpdsFeeds',
+    'customOpdsFeedsFile',
     'sevenZipPath',
     'djxlPath',
     'allowConfigRewrite',
