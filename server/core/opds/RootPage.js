@@ -36,8 +36,9 @@ class RootPage extends BasePage {
             this.seriesPage.myEntry(),
             this.titlePage.myEntry(),
             this.genrePage.myEntry(),
-            this.favoritesPage.myEntry(),
         ];
+        if (this.config.favorites && this.config.favorites.enabled)
+            result.entry.push(this.favoritesPage.myEntry());
 
         // кастомные OPDS-фиды
         const feeds = await CustomOpdsFeedPage.loadCustomFeeds(this.config);

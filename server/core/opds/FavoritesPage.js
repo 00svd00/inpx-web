@@ -16,6 +16,15 @@ class FavoritesPage extends BasePage {
 
         result.link = this.baseLinks(req, true);
 
+        if (!this.config.favorites || !this.config.favorites.enabled) {
+            result.entry = [this.makeEntry({
+                id: 'disabled',
+                title: '[Избранное выключено]',
+                link: this.navLink({href: '/root'}),
+            })];
+            return this.makeBody(result, req);
+        }
+
         // удаление: /opds/favorites?del=<uid>
         if (req.query.del)
             await this.favorites.remove(req.query.del);
