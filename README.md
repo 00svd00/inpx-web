@@ -28,6 +28,7 @@ OPDS-сервер доступен по адресу [http://127.0.0.1:12380/opd
     * [Удаленная библиотека](#remotelib)
     * [Фильтр по авторам и книгам](#filter)
     * [Подключение внешних программ (конвертеры, читалки, экспорт)](#external_tools)
+    * [Кастомные OPDS фиды](#custom_feeds)
     * [Настройка https с помощью nginx](#https)
 * [Сборка релизов](#build)
 * [Запуск без сборки релиза](#native_run)
@@ -157,6 +158,12 @@ Options:
     // конфигурационный файл для подключения внешник утилит и програм: конвертеров, читалок, экспорта и прочего
     // пустая строка: использовать значение по умолчанию - файл external_tools.json в директории файла конфигурации
     "externalToolsConfig": "",
+
+    //включить(true)/выключить(false) использование кастомных OPDS фидов
+    "customOpdsFeeds": false,
+
+    //путь к файлу с описание кастомных OPDS фидов. По умолчанию <dataDir>/custom-opds-feeds.json
+    "customOpdsFeedsFile": "",
 
     // путь к исполняемому файлу 7-Zip (7z.exe,7z, 7zz, 7za)
     // пустая строка: искать рядом с приложением, затем в PATH
@@ -533,6 +540,90 @@ Options:
 `${LIBFILE}` | имя файла книги в архиве
 
 Примеры конфигов можно посмотреть в папке [examples](./examples)
+
+<a id="custom_feeds" />
+
+
+### Кастомные OPDS фиды
+
+Помимо встроенных OPDS фидов(Авторы, Серии, Книги, Жанры, Избранное) можно создать свои собственные на основании поисковых фильтров. Включается параметром `customOpdsFeeds: true`, путь к конфигурационному файлу, в который заносится описание фидов, задаётся параметром `customOpdsFeedsFile` . Если не задан - по умолчанию будет `custom-opds-feeds.json` внутри `dataDir` ( т.е. рядом с `config.json`). Работают все поля, которые работают для поиска в вебе (кроме пагинации/служебных).
+
+
+*Пример:*
+*Мы хотим сделать фид со всеми книгами в жанрах фэнтези, которые появились в библиотеке за последние 2 месяца, имеют оценку 4 и выше и имеют больше 2-х оценок. После задания поисковых фильтров в веб интерфейсе в адресной строке браузера мы увидим ссылку такого вида:*
+`http://127.0.0.1:12380/#/author?genre=sf_fantasy,sf_fantasy_city,russian_fantasy,sf_technofantasy,fairy_fantasy&date=2months&librate=4,5&ratingCount=2..&page=1&limit=20`
+*Которую мы пересобираем в конфиг такого вида:*
+
+    "latest_fantasy": {
+            "name": "Последние поступления (фэнтези)",
+            "active": true,
+            "type": "author",
+            "query": {
+                "genre": "sf_fantasy,sf_fantasy_city,russian_fantasy,sf_technofantasy,fairy_fantasy",
+                "date": "2months",
+                "librate": "4,5",
+                "ratingCount": "2.."
+            }
+        }
+
+ - `latest_fantasy` - уникальный ID фида. Должен состоять только из символов, допустимых для url, валидируется регуляркой `^[a-zA-Z0-9_-]+$`
+ - `name` - читаемое название фида ( покажется на главной странице OPDS сервера ) 
+ - `active` - включить (`true`) или выключить (`false`) фид
+ - `type` - тип группировки книг в выдаче. `author` - по авторам, `series` - по сериям, `title` - по книгам
+ - `query` - объект поисковых фильтров. Может принимать следующие элементы:
+   - `author` - поиск по имени автора, работает аналогично вебу, т.е. допустимо использовать префиксы (`*,~,%,...`)
+   - `series` - поиск по сериям, аналогично полю `author`
+   - `title` - поиск по названию книги, аналогично `author` и `series`
+   - `genre` - поиск по кодам жанра (`sf_history,sf_action,sf_epic,...`)
+   - `lang` - язык (`ru,en,...`)
+   - `date` - дата поступления книги (`today`/`3days`/`week`/`2weeks`/`month`/`2months`/`3months` или `YYYY-MM-DD`/`YYYY-MM-DD,YYYY-MM-DD`)
+   - `librate` - фильтр по оценке (`0,1,2,3,4,5`, где `0` - без оценок)
+   - `ratingCount` - фильтр по количеству оценок (`N..M` или `N..` или `..M`, т.е. от `N` оценок до `M` оценок). Поиск по этому полю может быть медленным по большому числу книг. Рекомендуется использовать только в комбинации с другими фильтрами.
+   - `ext` - тип файла (`fb2,epub...`)
+ 
+ *Пример полного конфига:*
+
+     {
+    "latest_sf": {
+            "name": "Последние поступления (фантастика)",
+            "active": true,
+            "type": "author",
+            "query": {
+                "genre": "sf_history,sf_action,sf_epic,sf_heroic,sf_detective,sf_cyberpunk,sf_space,sf_social,sf_horror,sf_humor,sf_fantasy,sf,sf_fantasy_city,sf_postapocalyptic,sf_litrpg,sf_etc,russian_fantasy,sf_technofantasy,fairy_fantasy,hronoopera,sf_mystic,sf_stimpank,modern_tale,popadancy",
+                "date": "2months",
+                "librate": "4,5",
+                "ratingCount": "2.."
+            }
+        },
+    "worst_poetry": {
+            "name": "Самые плохие стихи",
+            "active": true,
+            "type": "title",
+            "query": {
+                "genre": "poetry,humor_verse,poetry_classical,poetry_modern,poetry_rus_classical,poetry_rus_modern,poetry_for_classical,poetry_for_modern,poetry_east,lyrics,song_poetry,poem,palindromes",
+                "librate": "1,2"
+            }
+        },
+    "cat_love": {
+            "name": "Любовные серии про котов",
+            "active": true,
+            "type": "series",
+            "query": {
+                "series": "%кот коты",
+                "genre": "love_contemporary,love_history,love_detective,love_short,love_erotica,love,love_sf,love_hard"
+            }
+        },
+    "detective_2010": {
+            "name": "Все детективы за 2010 год",
+            "active": true,
+            "type": "author",
+            "query": {
+                "genre": "det_classic,det_police,det_action,det_irony,det_history,det_espionage,det_crime,det_political,det_maniac,det_hard,thriller,detective,det_su",
+                "date": "2010-01-01,2010-12-31"
+            }
+        }
+    }
+Новые фиды можно добавлять без рестарта сервера (файл перечитывается каждый раз при обращении к opds).
 
 <a id="https" />
 
