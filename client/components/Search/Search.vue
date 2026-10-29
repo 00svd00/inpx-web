@@ -6,7 +6,7 @@
                 <!-- Обновление -->
                 <div v-show="showNewReleaseAvailable && newReleaseAvailable" class="row q-py-sm bg-green-4 items-center">
                     <div class="q-ml-sm" style="font-size: 120%">
-                        Доступна новая версия <b>{{ config.name }} v{{ config.latestVersion }}</b>
+                        Доступна новая версия <b>{{ config.name }} {{ config.latestVersion }}</b>
                     </div>
                     <DivBtn class="q-ml-sm q-px-sm bg-white" :size="20" @click.stop.prevent="openReleasePage">
                         Скачать
