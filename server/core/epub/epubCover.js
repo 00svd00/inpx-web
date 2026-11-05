@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const {
     readArchiveEntry, listArchiveEntries,
     isJpgBuffer, isPngBuffer,
+    jxlConvert,
 } = require('../book/bookImages');
 
 // Достаёт обложку из epub-zip, материализованного в кеш (<bookDir>/<hash>).
@@ -155,4 +156,56 @@ function resolveHref(prefix, href) {
     return path.posix.normalize(prefix + clean).replace(/^\.?\//, '');
 }
 
-module.exports = { extractEpubCover };
+// Достаёт данные EPUB: bookInfo (через EpubHelper) и обложку.
+// Обложка: сначала встроенная (из epub), если нет — covers/<libFolder>.
+// Возвращает {bookInfo, cover, coverExt}.
+// При любой ошибке — {bookInfo: null, cover: null, coverExt: ''}.
+async function extractEpubData(bookFile, config, libFolder, bookId, epubHelper) {
+    let bookInfo = null;
+    let cover = null;
+    let coverExt = '';
+
+    // 1. bookInfo из OPF
+    try {
+        bookInfo = await epubHelper.getBookInfo(bookFile);
+    } catch (e) {
+        console.error(`[epubCover] getBookInfo error: ${e.message}`);
+    }
+
+    // 2. встроенная обложка
+    try {
+        const c = await extractEpubCover(bookFile);
+        if (c) {
+            cover = c.buffer;
+            coverExt = c.ext;
+        }
+    } catch (e) {
+        console.error(`[epubCover] extractEpubCover error: ${e.message}`);
+    }
+
+    if (cover) {
+        return { bookInfo, cover, coverExt };
+    }
+
+    // 3. fallback: covers/<libFolder>
+    try {
+        const pathCover = path.join(config.libDir, 'covers', libFolder);
+        if (await fs.pathExists(pathCover)) {
+            const imageBuffer = await readArchiveEntry(pathCover, bookId);
+            if (imageBuffer) {
+                const { outputImg, ext } = await jxlConvert(imageBuffer);
+                return {
+                    bookInfo,
+                    cover: outputImg,
+                    coverExt: ext === 'jpeg' ? '.jpg' : '.png',
+                };
+            }
+        }
+    } catch (e) {
+        console.error(`[epubCover] covers fallback error: ${e.message}`);
+    }
+
+    return { bookInfo, cover: null, coverExt: '' };
+}
+
+module.exports = { extractEpubCover, extractEpubData };

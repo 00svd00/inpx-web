@@ -22,10 +22,10 @@ const genreTree = require('./genres');
 const { canonicalGenre } = require('./genres/genreUtils');
 const Fb2Helper = require('./fb2/Fb2Helper');
 const EpubHelper = require('./epub/EpubHelper');
-const { extractEpubCover } = require('./epub/epubCover');
 
 // 7z read and covers
-const extractZipCoverAndConvert = require("./CoverJXLConvert");
+const { extractFb2Data } = require('./fb2/fb2Cover');
+const { extractEpubData } = require('./epub/epubCover');
 const BookAppendImages = require("./BookAppendImages");
 const ReviewsReader = require('./ReviewsReader');
 const AuthorBioReader = require('./AuthorBioReader');
@@ -725,31 +725,26 @@ class WebWorker {
                 result.bookInfo = null;
                 let parser = null;
 
-                if (book.ext == 'fb2') {
-                    const {fb2, cover, coverExt} = await this.fb2Helper.getDescAndCover(bookFile);
-                    parser = fb2;
-                    result.bookInfo = fb2.bookInfo();
+                const {libFolder, libFile} = bookInfo;
 
-                    if (cover) {
-                        result.cover = `${this.config.bookPathStatic}/${hash}${coverExt}`;
-                        await fs.writeFile(`${bookFile}${coverExt}`, cover);
-                    } else {
-                        const {libFolder, libFile} = bookInfo
-                        const jxlcover = await extractZipCoverAndConvert(this.config, hash, libFolder, libFile.slice(0,-4));
-                        if(jxlcover){
-                            result.cover = jxlcover
-                        }
+                if (book.ext == 'fb2') {
+                    const data = await extractFb2Data(bookFile, this.config, libFolder, libFile.slice(0, -4), this.fb2Helper);
+                    parser = data.fb2;
+                    result.bookInfo = data.fb2 ? data.fb2.bookInfo() : null;
+
+                    if (data.cover) {
+                        result.cover = `${this.config.bookPathStatic}/${hash}${data.coverExt}`;
+                        await fs.writeFile(`${bookFile}${data.coverExt}`, data.cover);
                     }
                 } else if (book.ext === 'epub') {
-                    const cover = await extractEpubCover(bookFile);
-                    if (cover) {
-                        result.cover = `${this.config.bookPathStatic}/${hash}${cover.ext}`;
-                        result.coverType = cover.ext === '.png' ? 'image/png' : 'image/jpeg';
-                        await fs.writeFile(`${bookFile}${cover.ext}`, cover.buffer);
+                    const data = await extractEpubData(bookFile, this.config, libFolder, libFile.slice(0, -4), this.epubHelper);
+                    result.bookInfo = data.bookInfo;
+
+                    if (data.cover) {
+                        result.cover = `${this.config.bookPathStatic}/${hash}${data.coverExt}`;
+                        result.coverType = data.coverExt === '.png' ? 'image/png' : 'image/jpeg';
+                        await fs.writeFile(`${bookFile}${data.coverExt}`, data.cover);
                     }
-                    const info = await this.epubHelper.getBookInfo(bookFile);
-                    if (info)
-                        result.bookInfo = info;
                 }
 
                 Object.assign(info, result);
