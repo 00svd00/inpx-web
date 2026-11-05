@@ -13,7 +13,7 @@
     "test:watch": "node --require ./test/helpers/preload.js --test --watch \"test/unit/**/*.test.js\"",
     "dev": "nodemon --inspect --ignore server/.inpx-web --ignore client --exec node --expose-gc server --lib-dir=server/.inpx-web/lib",
     "build:client": "webpack --config build/webpack.prod.config.js",
-    "build:bundle": "node -e \"require('fs').rmSync('dist/bundle', {recursive: true, force: true})\" && esbuild server/index.js --bundle --platform=node --format=cjs --external:jembadb --outfile=dist/bundle/index.js",
+    "build:bundle": "node -e \"require('fs').rmSync('dist/bundle', {recursive: true, force: true})\" && esbuild server/index.js --bundle --platform=node --format=cjs --external:jembadb --external:@napi-rs/image --external:@napi-rs/image-* --outfile=dist/bundle/index.js",
     "build:linux": "npm run build:client && node build/prepkg.js linux && npm run build:bundle && node build/pkg-with-conditional.js node22-linux-x64 dist/linux/inpx-web dist/bundle/index.js",
     "build:linux-arm64": "npm run build:client && node build/prepkg.js linux-arm64 && npm run build:bundle && node build/pkg-with-conditional.js node22-linux-arm64 dist/linux-arm64/inpx-web dist/bundle/index.js",
     "build:linux-armv7": "npm run build:client && node build/prepkg.js linux-armv7 && npm run build:bundle && node build/pkg-with-conditional.js node22-linux-armv7 dist/linux-armv7/inpx-web dist/bundle/index.js",
@@ -30,6 +30,11 @@
     "postinstall": "npm run build:client-dev"
   },
   "bin": "server/index.js",
+  "pkg": {
+    "assets": [
+      "node_modules/@napi-rs/image-*/**/*.node"
+    ]
+  },
   "devDependencies": {
     "@babel/core": "^7.24.3",
     "@babel/eslint-parser": "^7.24.1",
@@ -60,6 +65,7 @@
   },
   "dependencies": {
     "@quasar/extras": "1.16.9",
+    "@napi-rs/image": "^1.16.0",
     "axios": "^1.20.0",
     "chardet": "^1.6.0",
     "dayjs": "^1.11.10",

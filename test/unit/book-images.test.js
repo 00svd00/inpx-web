@@ -26,19 +26,19 @@ test('jxlConvert: солянка (JXL→JPEG, PNG/JPEG — как есть)', {s
     const dir = await makeTmpDir();
     try {
         const jxl = Buffer.from(MINIMAL_JXL_B64, 'base64');
-        const {outputImg: jpgOut, ext: jpgExt} = await jxlConvert(jxl, dir, 'a');
+        const {outputImg: jpgOut, ext: jpgExt} = await jxlConvert(jxl);
         assert.strictEqual(jpgExt, 'jpeg');
-        assert.ok((await fs.readFile(jpgOut)).subarray(0, 3).equals(SIG.jpeg));
+        assert.ok(jpgOut.subarray(0, 3).equals(SIG.jpeg))
 
         const png = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-        const {outputImg: pngOut, ext: pngExt} = await jxlConvert(png, dir, 'b');
+        const {outputImg: pngOut, ext: pngExt} = await jxlConvert(png);
         assert.strictEqual(pngExt, 'png');
-        assert.deepStrictEqual(await fs.readFile(pngOut), png);
+        assert.deepStrictEqual(pngOut, png);
 
         const jpg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
-        const {outputImg: jpgOut2, ext: jpgExt2} = await jxlConvert(jpg, dir, 'c');
+        const {outputImg: jpgOut2, ext: jpgExt2} = await jxlConvert(jpg);
         assert.strictEqual(jpgExt2, 'jpeg');
-        assert.deepStrictEqual(await fs.readFile(jpgOut2), jpg);
+        assert.deepStrictEqual(jpgOut2, jpg); 
     } finally { await cleanup(dir); }
 });
 

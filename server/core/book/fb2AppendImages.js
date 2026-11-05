@@ -6,19 +6,9 @@ const {
     jxlConvert,
     readArchiveEntry,
     readArchiveEntries,
-    listArchiveEntries,
 } = require('./bookImages');
 
-function convertImageToBase64(filePath) {
-    try {
-        return fs.readFileSync(filePath).toString('base64');
-    } catch (error) {
-        console.error(`Error converting file to Base64: ${error.message}`);
-        throw error;
-    }
-}
-
-async function getCoverByBookId(config, libFolder, bookId, pathTmp) {
+async function getCoverByBookId(config, libFolder, bookId) {
     const pathCover = path.join(config.libDir, 'covers', libFolder);
     if (!await fs.pathExists(pathCover)) {
         console.log(`❌ Error path to coverpage "${pathCover}" not found!`);
@@ -31,24 +21,18 @@ async function getCoverByBookId(config, libFolder, bookId, pathTmp) {
         return null;
     }
 
-    return await jxlConvert(coverBuff, pathTmp, `${bookId}_cover`);
+    return await jxlConvert(coverBuff);
 }
 
-// fb2: iconv (encoding из <?xml?>), <binary> перед </FictionBook>, utf-8.
-// cover — из covers/<libFolder> (независимо от images);
-// images/<libFolder> — опционально (если нет — cover всё равно добавляется).
 async function getImagesBase64(config, libFolder, fileName) {
     const obj_images = {};
     const bookId = fileName.replace('.fb2', '');
-    const pathTmp = `${config.tempDir}/${bookId}`;
-    if (!fs.pathExistsSync(pathTmp))
-        fs.mkdirSync(pathTmp, {recursive: true});
 
     // cover — один entry, не в пуле (один)
-    const cover_obj = await getCoverByBookId(config, libFolder, bookId, pathTmp);
+    const cover_obj = await getCoverByBookId(config, libFolder, bookId);
     if (cover_obj) {
-        const {outputImg, ext} = cover_obj;
-        obj_images['cover'] = convertImageToBase64(outputImg, ext);
+        const {outputImg} = cover_obj;
+        obj_images['cover'] = outputImg.toString('base64');
     } else {
         console.log(`❌ Error coverpage equal null!`);
     }
@@ -57,15 +41,12 @@ async function getImagesBase64(config, libFolder, fileName) {
     const pathImages = path.join(config.libDir, 'images', libFolder);
     if (!(await fs.pathExists(pathImages))) {
         console.log(`❌ Error path to illustrations "${pathImages}" not found!`);
-        if (fs.pathExistsSync(pathTmp))
-            fs.rmSync(pathTmp, {recursive: true});
         return obj_images;
     }
 
     try {
         const images = await readArchiveEntries(pathImages, n => n.includes(bookId));
 
-        // пул воркеров: параллельный jxlConvert + convertImageToBase64
         const MAX_CONCURRENCY = 8;
         const concurrency = Math.min(os.availableParallelism(), MAX_CONCURRENCY);
         const queue = images.slice();
@@ -76,17 +57,14 @@ async function getImagesBase64(config, libFolder, fileName) {
                 while (queue.length) {
                     const {name, buf} = queue.shift();
                     const namefile = name.slice(name.lastIndexOf('/') + 1);
-                    const {outputImg, ext} = await jxlConvert(buf, pathTmp, namefile);
-                    obj_images[namefile] = convertImageToBase64(outputImg, ext);
+                    const {outputImg} = await jxlConvert(buf);
+                    obj_images[namefile] = outputImg.toString('base64');
                 }
             })());
         }
         await Promise.all(workers);
     } catch (e) {
         console.error(e);
-    } finally {
-        if (fs.pathExistsSync(pathTmp))
-            fs.rmSync(pathTmp, {recursive: true});
     }
 
     return obj_images;

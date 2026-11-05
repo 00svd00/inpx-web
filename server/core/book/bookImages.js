@@ -1,7 +1,5 @@
-const fs = require('fs-extra');
-const { spawn } = require('node:child_process');
+const { Transformer } = require('@napi-rs/image');
 const ZipReader = require('../ZipReader');
-const { resolveDjxl } = require('../DjxlResolver');
 
 const JXL_JPEG_QUALITY = 70;
 
@@ -32,39 +30,21 @@ function runDjxl(djxlPath, args, input) {
     });
 }
 
-// JXL -> JPEG (djxl); PNG/JPEG — как есть.
+// JXL -> JPEG (@napi-rs/image); PNG/JPEG — как есть.
 // Возвращает { outputImg, ext }.
-async function jxlConvert(imageBuff, pathTmp, namefile) {
-    let ext = 'png';
-    let outputImg = `${pathTmp}/${namefile}.${ext}`;
-
+async function jxlConvert(imageBuff) {
     if (isJxlBuffer(imageBuff)) {
-        const djxlPath = resolveDjxl();
-        if (!djxlPath)
-            throw new Error('djxl not found neither next to executable nor in PATH');
-        ext = 'jpeg';
-        outputImg = `${pathTmp}/${namefile}.jpg`;
-
-        await runDjxl(djxlPath, [
-            '--quiet',
-            '--bits_per_sample=8',
-            `--jpeg_quality=${JXL_JPEG_QUALITY}`,
-            '--background=white',
-            '--alpha_blend',
-            '--use_sjpeg',
-            '-',
-            outputImg,
-        ], imageBuff);
-    } else {
-        if (isJpgBuffer(imageBuff)) {
-            ext = 'jpeg';
-            outputImg = `${pathTmp}/${namefile}.jpg`;
-        }
-        fs.writeFileSync(outputImg, imageBuff, {flag: 'w'});
+        return {
+            outputImg: await new Transformer(imageBuff).jpeg(JXL_JPEG_QUALITY),
+            ext: 'jpeg',
+        };
     }
-
-    return {outputImg, ext};
+    if (isJpgBuffer(imageBuff)) {
+        return {outputImg: imageBuff, ext: 'jpeg'};
+    }
+    return {outputImg: imageBuff, ext: 'png'};
 }
+
 
 // --- чтение архивов: ZipReader сам выбирает zip/7z/PPMd ---
 

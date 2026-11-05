@@ -82,7 +82,6 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
         const entries = await readArchiveEntries(srcZip, n => wanted.has(n));
         const bufMap = new Map(entries.map(e => [e.name, e.buf]));
 
-        // один entry (cover) — без пула; много (иллюстрации) — пул
         if (list.length === 1) {
             const {id, num, entry, archive} = list[0];
             const imageBuf = bufMap.get(entry);
@@ -90,15 +89,11 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
                 console.log(`❌ ${archive}/${libFolder}: entry "${entry}" not found`);
                 continue;
             }
-            const safeId = id.replace(/\.[^.]+$/, '').replace(/[\\/]/g, '_');
-            const namefile = `${bookId}_${num}_${safeId}`;
-            const {outputImg} = await jxlConvert(imageBuf, tempDir, namefile);
-            toWrite.set(id, await fs.readFile(outputImg));
-            await fs.remove(outputImg);
+            const {outputImg} = await jxlConvert(imageBuf);
+            toWrite.set(id, outputImg);   // Buffer напрямую
             continue;
         }
 
-        // пул
         const MAX_CONCURRENCY = 8;
         const concurrency = Math.min(os.availableParallelism(), MAX_CONCURRENCY);
         const queue = list.slice();
@@ -112,11 +107,8 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
                         console.log(`❌ ${archive}/${libFolder}: entry "${entry}" not found`);
                         continue;
                     }
-                    const safeId = id.replace(/\.[^.]+$/, '').replace(/[\\/]/g, '_');
-                    const namefile = `${bookId}_${num}_${safeId}`;
-                    const {outputImg} = await jxlConvert(imageBuf, tempDir, namefile);
-                    toWrite.set(id, await fs.readFile(outputImg));
-                    await fs.remove(outputImg);
+                    const {outputImg} = await jxlConvert(imageBuf);
+                    toWrite.set(id, outputImg);   // Buffer напрямую
                 }
             })());
         }
