@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const yazl = require('yazl');
 const SevenZipHelper = require('../SevenZipHelper');
+const os = require('os');
 const { jxlConvert, readArchiveEntry, readArchiveEntries } = require('./bookImages');
 
 function is7zBuffer(buf) {
@@ -81,7 +82,9 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
         const entries = await readArchiveEntries(srcZip, n => wanted.has(n));
         const bufMap = new Map(entries.map(e => [e.name, e.buf]));
 
-        for (const {id, num, entry, archive} of list) {
+        // один entry (cover) — без пула; много (иллюстрации) — пул
+        if (list.length === 1) {
+            const {id, num, entry, archive} = list[0];
             const imageBuf = bufMap.get(entry);
             if (!imageBuf) {
                 console.log(`❌ ${archive}/${libFolder}: entry "${entry}" not found`);
@@ -92,7 +95,32 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
             const {outputImg} = await jxlConvert(imageBuf, tempDir, namefile);
             toWrite.set(id, await fs.readFile(outputImg));
             await fs.remove(outputImg);
+            continue;
         }
+
+        // пул
+        const MAX_CONCURRENCY = 8;
+        const concurrency = Math.min(os.availableParallelism(), MAX_CONCURRENCY);
+        const queue = list.slice();
+        const workers = [];
+        for (let w = 0; w < concurrency; w++) {
+            workers.push((async () => {
+                while (queue.length) {
+                    const {id, num, entry, archive} = queue.shift();
+                    const imageBuf = bufMap.get(entry);
+                    if (!imageBuf) {
+                        console.log(`❌ ${archive}/${libFolder}: entry "${entry}" not found`);
+                        continue;
+                    }
+                    const safeId = id.replace(/\.[^.]+$/, '').replace(/[\\/]/g, '_');
+                    const namefile = `${bookId}_${num}_${safeId}`;
+                    const {outputImg} = await jxlConvert(imageBuf, tempDir, namefile);
+                    toWrite.set(id, await fs.readFile(outputImg));
+                    await fs.remove(outputImg);
+                }
+            })());
+        }
+        await Promise.all(workers);
     }
 
     // пересборка: mimetype первым (stored), entries из <bookId>/ (без префикса, кроме mimetype), картинки; без FLibraryImageIndex.json

@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const iconv = require('iconv-lite');
 const path = require('path');
+const os = require('os');
 const {
     jxlConvert,
     readArchiveEntry,
@@ -43,7 +44,7 @@ async function getImagesBase64(config, libFolder, fileName) {
     if (!fs.pathExistsSync(pathTmp))
         fs.mkdirSync(pathTmp, {recursive: true});
 
-    // Get cover (covers/<libFolder> — независимо от images)
+    // cover — один entry, не в пуле (один)
     const cover_obj = await getCoverByBookId(config, libFolder, bookId, pathTmp);
     if (cover_obj) {
         const {outputImg, ext} = cover_obj;
@@ -52,7 +53,7 @@ async function getImagesBase64(config, libFolder, fileName) {
         console.log(`❌ Error coverpage equal null!`);
     }
 
-    // Get illustrations (images/<libFolder> — опционально)
+    // иллюстрации — опционально
     const pathImages = path.join(config.libDir, 'images', libFolder);
     if (!(await fs.pathExists(pathImages))) {
         console.log(`❌ Error path to illustrations "${pathImages}" not found!`);
@@ -63,11 +64,24 @@ async function getImagesBase64(config, libFolder, fileName) {
 
     try {
         const images = await readArchiveEntries(pathImages, n => n.includes(bookId));
-        for (const {name, buf} of images) {
-            const namefile = name.slice(name.lastIndexOf('/') + 1);
-            const {outputImg, ext} = await jxlConvert(buf, pathTmp, namefile);
-            obj_images[namefile] = convertImageToBase64(outputImg, ext);
+
+        // пул воркеров: параллельный jxlConvert + convertImageToBase64
+        const MAX_CONCURRENCY = 8;
+        const concurrency = Math.min(os.availableParallelism(), MAX_CONCURRENCY);
+        const queue = images.slice();
+
+        const workers = [];
+        for (let w = 0; w < concurrency; w++) {
+            workers.push((async () => {
+                while (queue.length) {
+                    const {name, buf} = queue.shift();
+                    const namefile = name.slice(name.lastIndexOf('/') + 1);
+                    const {outputImg, ext} = await jxlConvert(buf, pathTmp, namefile);
+                    obj_images[namefile] = convertImageToBase64(outputImg, ext);
+                }
+            })());
         }
+        await Promise.all(workers);
     } catch (e) {
         console.error(e);
     } finally {
