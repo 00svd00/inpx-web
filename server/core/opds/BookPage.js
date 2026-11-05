@@ -6,6 +6,7 @@ const BasePage = require('./BasePage');
 const { buildInfoList } = require('../book/bookInfoMapping');
 const { bookFormats } = require('../book/bookFormats');
 const { isAvailable } = require('../externalTools');
+const { canonicalGenre } = require('../genres/genreUtils');
 
 class BookPage extends BasePage {
     constructor(config) {
@@ -31,11 +32,11 @@ class BookPage extends BasePage {
         if (genreArr) {
             for (const genre of genreArr) {
                 const g = genre.trim();
-                const name = this.genreMap.get(g);
-                result.push(name ? name : g);
+                const canonical = canonicalGenre(g);
+                const name = this.genreMap.get(canonical);
+                result.push(name ? name : canonical);
             }
         }
-
         return result.join(', ');
     }
 
@@ -193,7 +194,8 @@ class BookPage extends BasePage {
                 //genre
                 const genre = bookInfo.book.genre.split(',');
                 for (const g of genre) {
-                    const genreName = genreMap.get(g);
+                    const canonical = canonicalGenre(g.trim());
+                    const genreName = genreMap.get(canonical);
                     if (genreName) {
                         if (!e.category)
                             e.category = [];
