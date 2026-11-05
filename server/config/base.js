@@ -21,7 +21,6 @@ module.exports = {
     customOpdsFeeds: false,           // разрешить кастомные OPDS-фиды
     customOpdsFeedsFile: '',          // путь к JSON; пусто → dataDir/custom-opds-feeds.json
     sevenZipPath: '',
-    djxlPath: '',
 
     allowConfigRewrite: false,
     allowUnsafeFilter: false,

@@ -15,7 +15,6 @@ const propsToSave = [
     'customOpdsFeeds',
     'customOpdsFeedsFile',
     'sevenZipPath',
-    'djxlPath',
     'allowConfigRewrite',
     'allowUnsafeFilter',
     'accessPassword',
