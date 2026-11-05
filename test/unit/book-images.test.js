@@ -5,7 +5,6 @@ const path = require('path');
 
 const { jxlConvert, isJxlBuffer, isPngBuffer, isJpgBuffer, readArchiveEntry, listArchiveEntries } = require('../../server/core/book/bookImages');
 const { makeTmpDir, cleanup } = require('../helpers/tmpdir');
-const { hasDjxl } = require('../helpers/tools');
 const { makeZip } = require('../helpers/zip');
 const { make7z } = require('../helpers/sevenZip');
 const { has7z } = require('../helpers/tools');
@@ -22,24 +21,21 @@ test('is*Buffer: магические байты', () => {
     assert.strictEqual(isJpgBuffer(Buffer.alloc(0)), false);
 });
 
-test('jxlConvert: солянка (JXL→JPEG, PNG/JPEG — как есть)', {skip: !hasDjxl()}, async () => {
-    const dir = await makeTmpDir();
-    try {
-        const jxl = Buffer.from(MINIMAL_JXL_B64, 'base64');
-        const {outputImg: jpgOut, ext: jpgExt} = await jxlConvert(jxl);
-        assert.strictEqual(jpgExt, 'jpeg');
-        assert.ok(jpgOut.subarray(0, 3).equals(SIG.jpeg))
+test('jxlConvert: солянка (JXL→JPEG, PNG/JPEG — как есть)', async () => {
+    const jxl = Buffer.from(MINIMAL_JXL_B64, 'base64');
+    const {outputImg: jpgOut, ext: jpgExt} = await jxlConvert(jxl);
+    assert.strictEqual(jpgExt, 'jpeg');
+    assert.ok(jpgOut.subarray(0, 3).equals(SIG.jpeg));
 
-        const png = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-        const {outputImg: pngOut, ext: pngExt} = await jxlConvert(png);
-        assert.strictEqual(pngExt, 'png');
-        assert.deepStrictEqual(pngOut, png);
+    const png = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    const {outputImg: pngOut, ext: pngExt} = await jxlConvert(png);
+    assert.strictEqual(pngExt, 'png');
+    assert.deepStrictEqual(pngOut, png);
 
-        const jpg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
-        const {outputImg: jpgOut2, ext: jpgExt2} = await jxlConvert(jpg);
-        assert.strictEqual(jpgExt2, 'jpeg');
-        assert.deepStrictEqual(jpgOut2, jpg); 
-    } finally { await cleanup(dir); }
+    const jpg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]);
+    const {outputImg: jpgOut2, ext: jpgExt2} = await jxlConvert(jpg);
+    assert.strictEqual(jpgExt2, 'jpeg');
+    assert.deepStrictEqual(jpgOut2, jpg);
 });
 
 test('readArchiveEntry/listArchiveEntries: zip (ZipReader)', async () => {

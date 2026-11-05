@@ -6,13 +6,13 @@ const crypto = require('crypto');
 
 const epubAppendImages = require('../../server/core/book/epubAppendImages');
 const { makeTmpDir, cleanup } = require('../helpers/tmpdir');
-const { has7z, hasDjxl } = require('../helpers/tools');
+const { has7z} = require('../helpers/tools');
 const { MINIMAL_JXL_B64, SIG } = require('../helpers/jxl');
 const { makeEpub7z, makeEpubZip } = require('../helpers/epub');
 const { makeLib } = require('../helpers/book');
 const { readZip } = require('../helpers/zip');
 
-const hasTools = has7z() && hasDjxl();
+const hasTools = has7z();
 
 async function makeEnv(dir) {
     const libDir = path.join(dir, 'lib');

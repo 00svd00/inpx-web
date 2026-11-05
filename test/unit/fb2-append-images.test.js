@@ -2,16 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs-extra');
 const path = require('path');
-const { execFileSync } = require('child_process');
 
 const fb2AppendImages = require('../../server/core/book/fb2AppendImages');
-const { resolveDjxl } = require('../../server/core/DjxlResolver');
+const { Transformer } = require('@napi-rs/image');
 const { makeTmpDir, cleanup } = require('../helpers/tmpdir');
-const { hasDjxl } = require('../helpers/tools');
 const { MINIMAL_JXL_B64, SIG } = require('../helpers/jxl');
 const { makeLib, FB2 } = require('../helpers/book');
 
-test('fb2AppendImages: JXL→JPEG; JPEG/PNG не трогаются; content-type по имени', {skip: !hasDjxl()}, async () => {
+test('fb2AppendImages: JXL→JPEG; JPEG/PNG не трогаются; content-type по имени', async () => {
     const dir = await makeTmpDir();
     try {
         const libDir = path.join(dir, 'lib');
@@ -24,12 +22,8 @@ test('fb2AppendImages: JXL→JPEG; JPEG/PNG не трогаются; content-typ
         const bookId = 'book';
         const jxl = Buffer.from(MINIMAL_JXL_B64, 'base64');
 
-        // PNG — на лету из JXL (djxl)
-        const jxlPath = path.join(dir, 'src.jxl');
-        const pngPath = path.join(dir, 'src.png');
-        await fs.writeFile(jxlPath, jxl);
-        execFileSync(resolveDjxl(), [jxlPath, pngPath], {stdio: 'pipe'});
-        const png = await fs.readFile(pngPath);
+        // PNG — на лету из JXL через @napi-rs/image
+        const png = await new Transformer(jxl).png();
         assert.ok(png.subarray(0, 8).equals(SIG.png));
 
         const jpeg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01]);
@@ -67,7 +61,7 @@ test('fb2AppendImages: JXL→JPEG; JPEG/PNG не трогаются; content-typ
     } finally { await cleanup(dir); }
 });
 
-test('fb2AppendImages: без images — cover не теряется', {skip: !hasDjxl()}, async () => {
+test('fb2AppendImages: без images — cover не теряется', async () => {
     const dir = await makeTmpDir();
     try {
         const libDir = path.join(dir, 'lib');

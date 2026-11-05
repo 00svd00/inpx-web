@@ -8,14 +8,14 @@ const BookAppendImages = require('../../server/core/BookAppendImages');
 const SevenZipHelper = require('../../server/core/SevenZipHelper');
 const { makeTmpDir, cleanup } = require('../helpers/tmpdir');
 const { resetSingletons } = require('../helpers/instances');
-const { has7z, hasDjxl } = require('../helpers/tools');
+const { has7z} = require('../helpers/tools');
 const { MINIMAL_JXL_B64, SIG } = require('../helpers/jxl');
 const { make7z } = require('../helpers/sevenZip');
 const { makeEpub7z } = require('../helpers/epub');
 const { makeLib, FB2 } = require('../helpers/book');
 const { readZip } = require('../helpers/zip');
 
-const hasTools = has7z() && hasDjxl();
+const hasTools = has7z();
 
 function make7zFromFile(libDir, libName, filePath) {
     const archive = path.join(libDir, `${libName}.7z`);

@@ -1,9 +1,21 @@
 const path = require('path');
+const JXL_JPEG_QUALITY = 69;
 
-// Функция определяет, какой нативный модуль подгрузить.
-// Мы используем жестко прописанные строки require(), чтобы статический анализатор pkg 
-// жестко связал их с файлами, объявленными в pkg.assets в package.json.
+// Определяет, запущены ли мы в собранном pkg-бинарнике.
+// process.pkg определён только в pkg.
+function isPkg() {
+    return typeof process.pkg !== 'undefined';
+}
+
 function loadNativeBinding() {
+    // dev/тесты: штатный загрузчик @napi-rs/image найдёт .node в node_modules.
+    // module.require — динамический, pkg не включает @napi-rs/image в снапшот.
+    if (!isPkg()) {
+        return module.require('@napi-rs/image');
+    }
+
+    // pkg: статические require на dist/napi-assets/, чтобы pkg включил
+    // нужный .node в снапшот (по require-цепочке + pkg.assets).
     const { platform, arch } = process;
 
     try {
@@ -22,7 +34,7 @@ function loadNativeBinding() {
     } catch (err) {
         console.error(`[jxlConvert] Не удалось загрузить нативный модуль для ${platform}-${arch}:`, err.message);
     }
-    
+
     throw new Error(`Нативная библиотека для платформы ${platform}-${arch} отсутствует или не может быть загружена.`);
 }
 
@@ -32,7 +44,6 @@ function loadNativeBinding() {
 const nativeBinding = loadNativeBinding();
 
 const ZipReader = require('../ZipReader');
-const JXL_JPEG_QUALITY = 69;
 
 function isJxlBuffer(buffer) {
     return buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0x0A;
