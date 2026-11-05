@@ -46,40 +46,45 @@ function isJpgBuffer(buffer) {
     return buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0xD8;
 }
 
-// JXL -> JPEG с альфа-блендингом на белый фон средствами Rust
 async function jxlConvert(imageBuff) {
     if (!imageBuff || !imageBuff.length) {
         return { outputImg: Buffer.alloc(0), ext: 'png' };
     }
 
     if (isJxlBuffer(imageBuff)) {
-        // 1. Декодируем JXL в трансформер
         const transformer = new nativeBinding.Transformer(imageBuff);
-        
-        // Получаем метаданные (ширину и высоту), чтобы создать подложку точного размера
-        const { width, height } = await transformer.metadata();
+        const meta = await transformer.metadata();
 
-        // 2. Создаем чистый белый холст (Background) в формате PNG средствами napi-rs
-        // Для этого создаем пустой прозрачный холст и заливаем его белым цветом
-        const whiteBackground = await nativeBinding.Transformer.fromRgbaPixels(
-            new Uint8Array(width * height * 4).fill(255), // Заполняем 255 (белый цвет + непрозрачный альфа)
-            width,
-            height
-        ).png(); // Конвертируем в буфер, так как .overlay принимает закодированные байты
+        if (meta.colorType !== 3) {
+            return { outputImg: await transformer.jpeg(JXL_JPEG_QUALITY), ext: 'jpeg' };
+        }
 
-        // 3. Накладываем наш исходный JXL поверх белого холста.
-        // Метод .overlay автоматически производит альфа-блендинг прозрачных пикселей в слое Rust
-        const blendedTransformer = new nativeBinding.Transformer(whiteBackground);
-        const jpegBuffer = await blendedTransformer
-            .overlay(imageBuff, 0, 0) // Накладываем JXL с левого верхнего угла (0, 0)
-            .jpeg(JXL_JPEG_QUALITY);
-
+        // с альфой — rawPixels + JS-цикл (замена прозрачных на белый)
+        const raw = await transformer.rawPixels(); // RGBA
+        const len = raw.length;
+        for (let i = 0; i < len; i += 4) {
+            const a = raw[i + 3];
+            if (a === 255) continue;          // непрозрачный — пропускаем
+            if (a === 0) {                    // полностью прозрачный — белый
+                raw[i] = 255;
+                raw[i + 1] = 255;
+                raw[i + 2] = 255;
+                raw[i + 3] = 255;
+                continue;
+            }
+            const inv = 255 - a;
+            raw[i]     = (raw[i]     * a + 255 * inv) / 255 | 0;
+            raw[i + 1] = (raw[i + 1] * a + 255 * inv) / 255 | 0;
+            raw[i + 2] = (raw[i + 2] * a + 255 * inv) / 255 | 0;
+            raw[i + 3] = 255;
+        }
+        const t2 = nativeBinding.Transformer.fromRgbaPixels(raw, meta.width, meta.height);
         return {
-            outputImg: jpegBuffer,
+            outputImg: await t2.jpeg(JXL_JPEG_QUALITY),
             ext: 'jpeg',
         };
     }
-    
+
     if (isJpgBuffer(imageBuff)) {
         return { outputImg: imageBuff, ext: 'jpeg' };
     }
