@@ -1,9 +1,38 @@
-const { Transformer } = require('@napi-rs/image');
+const path = require('path');
+
+// Функция определяет, какой нативный модуль подгрузить.
+// Мы используем жестко прописанные строки require(), чтобы статический анализатор pkg 
+// жестко связал их с файлами, объявленными в pkg.assets в package.json.
+function loadNativeBinding() {
+    const { platform, arch } = process;
+
+    try {
+        if (platform === 'win32' && arch === 'x64') {
+            return require('../../dist/napi-assets/image.win32-x64-msvc.node');
+        }
+        if (platform === 'darwin') {
+            if (arch === 'arm64') return require('../../dist/napi-assets/image.darwin-arm64.node');
+            if (arch === 'x64') return require('../../dist/napi-assets/image.darwin-x64.node');
+        }
+        if (platform === 'linux') {
+            if (arch === 'arm') return require('../../dist/napi-assets/image.linux-arm-gnueabihf.node');
+            if (arch === 'arm64') return require('../../dist/napi-assets/image.linux-arm64-gnu.node');
+            if (arch === 'x64') return require('../../dist/napi-assets/image.linux-x64-gnu.node');
+        }
+    } catch (err) {
+        console.error(`[jxlConvert] Не удалось загрузить нативный модуль для ${platform}-${arch}:`, err.message);
+    }
+    
+    throw new Error(`Нативная библиотека для платформы ${platform}-${arch} отсутствует или не может быть загружена.`);
+}
+
+// Инициализируем бинарник. 
+// При сборке под конкретную ОС pkg возьмет из папки dist/napi-assets/ ровно один файл,
+// который туда положил fetch-napi.js, запечет внутрь, а остальные пустые пути проигнорирует.
+const nativeBinding = loadNativeBinding();
+
 const ZipReader = require('../ZipReader');
-
-const JXL_JPEG_QUALITY = 70;
-
-// --- магические байты изображений (общее для fb2/epub: в архивах может быть солянка) ---
+const JXL_JPEG_QUALITY = 69;
 
 function isJxlBuffer(buffer) {
     return buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0x0A;
@@ -17,36 +46,45 @@ function isJpgBuffer(buffer) {
     return buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0xD8;
 }
 
-function runDjxl(djxlPath, args, input) {
-    return new Promise((resolve, reject) => {
-        const p = spawn(djxlPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
-        const out = [];
-        let err = '';
-        p.stdout.on('data', c => out.push(c));
-        p.stderr.on('data', c => { err += c.toString(); });
-        p.on('error', reject);
-        p.on('close', code => code === 0 ? resolve(Buffer.concat(out)) : reject(new Error(`djxl exit ${code}: ${err}`)));
-        p.stdin.end(input);
-    });
-}
-
-// JXL -> JPEG (@napi-rs/image); PNG/JPEG — как есть.
-// Возвращает { outputImg, ext }.
+// JXL -> JPEG с альфа-блендингом на белый фон средствами Rust
 async function jxlConvert(imageBuff) {
+    if (!imageBuff || !imageBuff.length) {
+        return { outputImg: Buffer.alloc(0), ext: 'png' };
+    }
+
     if (isJxlBuffer(imageBuff)) {
+        // 1. Декодируем JXL в трансформер
+        const transformer = new nativeBinding.Transformer(imageBuff);
+        
+        // Получаем метаданные (ширину и высоту), чтобы создать подложку точного размера
+        const { width, height } = await transformer.metadata();
+
+        // 2. Создаем чистый белый холст (Background) в формате PNG средствами napi-rs
+        // Для этого создаем пустой прозрачный холст и заливаем его белым цветом
+        const whiteBackground = await nativeBinding.Transformer.fromRgbaPixels(
+            new Uint8Array(width * height * 4).fill(255), // Заполняем 255 (белый цвет + непрозрачный альфа)
+            width,
+            height
+        ).png(); // Конвертируем в буфер, так как .overlay принимает закодированные байты
+
+        // 3. Накладываем наш исходный JXL поверх белого холста.
+        // Метод .overlay автоматически производит альфа-блендинг прозрачных пикселей в слое Rust
+        const blendedTransformer = new nativeBinding.Transformer(whiteBackground);
+        const jpegBuffer = await blendedTransformer
+            .overlay(imageBuff, 0, 0) // Накладываем JXL с левого верхнего угла (0, 0)
+            .jpeg(JXL_JPEG_QUALITY);
+
         return {
-            outputImg: await new Transformer(imageBuff).jpeg(JXL_JPEG_QUALITY),
+            outputImg: jpegBuffer,
             ext: 'jpeg',
         };
     }
+    
     if (isJpgBuffer(imageBuff)) {
-        return {outputImg: imageBuff, ext: 'jpeg'};
+        return { outputImg: imageBuff, ext: 'jpeg' };
     }
-    return {outputImg: imageBuff, ext: 'png'};
+    return { outputImg: imageBuff, ext: 'png' };
 }
-
-
-// --- чтение архивов: ZipReader сам выбирает zip/7z/PPMd ---
 
 async function readArchiveEntry(archivePath, entryName) {
     const zipReader = new ZipReader();
@@ -62,8 +100,6 @@ async function readArchiveEntry(archivePath, entryName) {
     }
 }
 
-// Извлекает все entry, прошедшие filterFn, за одно открытие архива.
-// Возвращает [{name, buf}]. Ошибки — пустой массив (как readArchiveEntry).
 async function readArchiveEntries(archivePath, filterFn) {
     const zipReader = new ZipReader();
     try {
@@ -99,7 +135,6 @@ async function listArchiveEntries(archivePath) {
         try { await zipReader.close(); } catch (e) {}
     }
 }
-
 
 module.exports = {
     isJxlBuffer, isPngBuffer, isJpgBuffer,
