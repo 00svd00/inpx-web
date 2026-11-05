@@ -1274,7 +1274,7 @@ class Search {
                 let result;
 
                 if (this.abCacheEnabled) {
-                    const key = `genre-tree-${this.list.inpxHash}`;
+                    const key = `genre-tree-${this.list.inpxHash}-${this.config.webAppVersion}`;
                     const data = await authorBooksStorage.getData(key);
                     if (data) {
                         result = JSON.parse(data);

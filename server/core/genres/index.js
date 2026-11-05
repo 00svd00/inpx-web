@@ -9,6 +9,7 @@ const lines = genresText.split('\n').map(l => l.trim());
 let index = 0;
 
 let other;//прочее в конец
+let otherSection = null;//номер секции «Прочее» (не хардкодим 0.20)
 const names = new Set();
 
 for (const line of lines) {
@@ -31,8 +32,9 @@ for (const line of lines) {
 
     if (!nonfb2) {
         if (num.length < 3) {//раздел
-            if (section == '0.20') {//прочее
+            if (name === 'Прочее') {//прочее (независимо от номера секции)
                 other = {name, value: []};
+                otherSection = section;
             } else {
                 if (sec2index[section] === undefined) {
                     if (!genres[index])
@@ -45,7 +47,7 @@ for (const line of lines) {
             const n = name.split(';').map(l => l.trim());
             names.add(n[0]);
 
-            if (section == '0.20') {//прочее
+            if (section === otherSection) {//прочее
                 other.value.push({name: n[1], value: n[0]});
             } else {
                 const i = sec2index[section];

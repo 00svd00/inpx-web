@@ -1,6 +1,8 @@
 // Единый источник истины «bookInfo (fb2/epub-структура) → info-массив / desc».
 // Используется Fb2Parser.bookInfoList, EpubParser.bookInfoList, клиентом (buildInfoList)
 // и OPDS/BookPage (buildInfoList / buildDesc).
+const { canonicalGenre } = require('../genres/genreUtils');
+
 
 // mapping — какие поля показывать (label/value). Структура — как Fb2Parser.bookInfo().
 const mapping = [
@@ -87,10 +89,20 @@ function buildInfoList(bookInfo, options = {}) {
 
         for (const subItem of item.value) {
             if (info[subItem.name] !== null && info[subItem.name] !== undefined) {
+                let rawValue = info[subItem.name];
+
+                // жанры: код → канон (popadanec → popadancy), чтобы отображалось
+                // правильное название; исходный код не меняем — он уходит в value как есть
+                let displayValue = rawValue;
+                if (subItem.name === 'genre') {
+                    const toCanon = v => (typeof v === 'string' ? canonicalGenre(v) : v);
+                    displayValue = Array.isArray(rawValue) ? rawValue.map(toCanon) : toCanon(rawValue);
+                }
+
                 const subItemOut = {
                     name: subItem.name,
                     label: subItem.label,
-                    value: valueToString(info[subItem.name], `${item.name}/${subItem.name}`, myValueToString),
+                    value: valueToString(displayValue, `${item.name}/${subItem.name}`, myValueToString),
                 };
                 if (subItemOut.value)
                     itemOut.value.push(subItemOut);
@@ -109,12 +121,14 @@ function buildDesc(bookInfo) {
     const ti = (bookInfo && bookInfo.titleInfo) || {};
     const seq = (ti.sequence && ti.sequence[0]) || null;
 
+    const genre = (ti.genre || []).map(g => (typeof g === 'string' ? canonicalGenre(g) : g));
+
     return {
         title: ti.bookTitle || '',
         author: ti.author || [],
         series: seq ? (seq.name || '') : '',
         seriesIndex: seq ? (parseInt(seq.num, 10) || null) : null,
-        genre: ti.genre || [],
+        genre: genre,
         lang: ti.lang || '',
         date: ti.date || '',
         description: ti.annotationHtml || '',

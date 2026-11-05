@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 //const _ = require('lodash');
 const utils = require('./utils');
+const { expandGenre } = require('./genres/genreUtils');
 
 const maxLimit = 1000;
 
@@ -96,6 +97,10 @@ class DbSearcher {
 
     async selectBookIds(query) {
         const db = this.db;
+
+        // раскрытие алиасов жанров (popadanec → popadancy, *_all → общий код и т.д.)
+        if (query.genre)
+            query = { ...query, genre: expandGenre(query.genre) };
 
         const idsArr = [];
 

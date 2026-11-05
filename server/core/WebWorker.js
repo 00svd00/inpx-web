@@ -19,6 +19,7 @@ const asyncExit = new (require('./AsyncExit'))();
 const log = new (require('./AppLogger'))().log;//singleton
 const utils = require('./utils');
 const genreTree = require('./genres');
+const { canonicalGenre } = require('./genres/genreUtils');
 const Fb2Helper = require('./fb2/Fb2Helper');
 const EpubHelper = require('./epub/EpubHelper');
 const { extractEpubCover } = require('./epub/epubCover');
@@ -440,7 +441,9 @@ class WebWorker {
             let rows = await db.select({table: 'genre', map: `(r) => ({value: r.value})`});
             for (const row of rows) {
                 genreParsed.add(row.value);
-
+                // алиасы не показываем в «Прочее» — они отображаются под каноном
+                if (canonicalGenre(row.value) !== row.value)
+                    continue;
                 if (!genreValues.has(row.value))
                     last.value.push({name: row.value, value: row.value});
             }
