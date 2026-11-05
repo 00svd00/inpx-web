@@ -4,6 +4,7 @@ const path = require('path');
 const {
     jxlConvert,
     readArchiveEntry,
+    readArchiveEntries,
     listArchiveEntries,
 } = require('./bookImages');
 
@@ -61,16 +62,11 @@ async function getImagesBase64(config, libFolder, fileName) {
     }
 
     try {
-        const entries = await listArchiveEntries(pathImages);
-        for (const entry of entries) {
-            if (entry.includes(bookId)) {
-                const imageBuff = await readArchiveEntry(pathImages, entry);
-                if (!imageBuff)
-                    continue;
-                const namefile = entry.slice(entry.lastIndexOf('/') + 1);
-                const {outputImg, ext} = await jxlConvert(imageBuff, pathTmp, namefile);
-                obj_images[namefile] = convertImageToBase64(outputImg, ext);
-            }
+        const images = await readArchiveEntries(pathImages, n => n.includes(bookId));
+        for (const {name, buf} of images) {
+            const namefile = name.slice(name.lastIndexOf('/') + 1);
+            const {outputImg, ext} = await jxlConvert(buf, pathTmp, namefile);
+            obj_images[namefile] = convertImageToBase64(outputImg, ext);
         }
     } catch (e) {
         console.error(e);
@@ -91,14 +87,15 @@ async function fb2AppendImages(config, libFolder, fileName, rawBuffer, outFile) 
 
     const entries = await getImagesBase64(config, libFolder, fileName);
 
-    let binaryBlocks = '';
+    const blocks = [];
     for (const imageName in entries) {
         const pureBase64 = entries[imageName].replace(/^data:image\/\w+;base64,/, '');
         const contentType = imageName.toLowerCase().endsWith('.jpg') || imageName.toLowerCase().endsWith('.jpeg')
             ? 'image/jpeg'
             : 'image/png';
-        binaryBlocks += `\n<binary id="${imageName}" content-type="${contentType}">${pureBase64}</binary>`;
+        blocks.push(`\n<binary id="${imageName}" content-type="${contentType}">${pureBase64}</binary>`);
     }
+    const binaryBlocks = blocks.join('');
 
     if (fb2Text.includes('</FictionBook>'))
         fb2Text = fb2Text.replace('</FictionBook>', `${binaryBlocks}\n</FictionBook>`);

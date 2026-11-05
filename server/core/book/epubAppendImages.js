@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const yazl = require('yazl');
 const SevenZipHelper = require('../SevenZipHelper');
-const { jxlConvert, readArchiveEntry } = require('./bookImages');
+const { jxlConvert, readArchiveEntry, readArchiveEntries } = require('./bookImages');
 
 function is7zBuffer(buf) {
     return buf.length >= 6 && buf[0] === 0x37 && buf[1] === 0x7A && buf[2] === 0xBC
@@ -64,20 +64,35 @@ async function repack7zToZip(config, libFolder, fileName, sevenZipPath, outZip) 
     }
 
     const toWrite = new Map();
+
+    // группируем items по архиву (covers / images), чтобы открыть каждый один раз
+    const byArchive = new Map(); // srcZip -> [{id, num, entry, archive}]
     for (const {id, num} of items) {
         const archive = (num === -1 ? 'covers' : 'images');
         const srcZip = path.join(config.libDir, archive, libFolder);
         const entry = (num === -1 ? bookId : `${bookId}/${num}`);
-        const imageBuf = await readArchiveEntry(srcZip, entry);
-        if (!imageBuf) {
-            console.log(`❌ ${archive}/${libFolder}: entry "${entry}" not found`);
-            continue;
+        if (!byArchive.has(srcZip))
+            byArchive.set(srcZip, []);
+        byArchive.get(srcZip).push({id, num, entry, archive});
+    }
+
+    for (const [srcZip, list] of byArchive) {
+        const wanted = new Set(list.map(it => it.entry));
+        const entries = await readArchiveEntries(srcZip, n => wanted.has(n));
+        const bufMap = new Map(entries.map(e => [e.name, e.buf]));
+
+        for (const {id, num, entry, archive} of list) {
+            const imageBuf = bufMap.get(entry);
+            if (!imageBuf) {
+                console.log(`❌ ${archive}/${libFolder}: entry "${entry}" not found`);
+                continue;
+            }
+            const safeId = id.replace(/\.[^.]+$/, '').replace(/[\\/]/g, '_');
+            const namefile = `${bookId}_${num}_${safeId}`;
+            const {outputImg} = await jxlConvert(imageBuf, tempDir, namefile);
+            toWrite.set(id, await fs.readFile(outputImg));
+            await fs.remove(outputImg);
         }
-        const safeId = id.replace(/\.[^.]+$/, '').replace(/[\\/]/g, '_');
-        const namefile = `${bookId}_${num}_${safeId}`;
-        const {outputImg} = await jxlConvert(imageBuf, tempDir, namefile);
-        toWrite.set(id, await fs.readFile(outputImg));   // id от корня epub
-        await fs.remove(outputImg);
     }
 
     // пересборка: mimetype первым (stored), entries из <bookId>/ (без префикса, кроме mimetype), картинки; без FLibraryImageIndex.json

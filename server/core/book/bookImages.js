@@ -1,5 +1,5 @@
 const fs = require('fs-extra');
-const { execFileSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 const ZipReader = require('../ZipReader');
 const { resolveDjxl } = require('../DjxlResolver');
 
@@ -19,6 +19,19 @@ function isJpgBuffer(buffer) {
     return buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0xD8;
 }
 
+function runDjxl(djxlPath, args, input) {
+    return new Promise((resolve, reject) => {
+        const p = spawn(djxlPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        const out = [];
+        let err = '';
+        p.stdout.on('data', c => out.push(c));
+        p.stderr.on('data', c => { err += c.toString(); });
+        p.on('error', reject);
+        p.on('close', code => code === 0 ? resolve(Buffer.concat(out)) : reject(new Error(`djxl exit ${code}: ${err}`)));
+        p.stdin.end(input);
+    });
+}
+
 // JXL -> JPEG (djxl); PNG/JPEG — как есть.
 // Возвращает { outputImg, ext }.
 async function jxlConvert(imageBuff, pathTmp, namefile) {
@@ -32,7 +45,7 @@ async function jxlConvert(imageBuff, pathTmp, namefile) {
         ext = 'jpeg';
         outputImg = `${pathTmp}/${namefile}.jpg`;
 
-        execFileSync(djxlPath, [
+        await runDjxl(djxlPath, [
             '--quiet',
             '--bits_per_sample=8',
             `--jpeg_quality=${JXL_JPEG_QUALITY}`,
@@ -41,11 +54,7 @@ async function jxlConvert(imageBuff, pathTmp, namefile) {
             '--use_sjpeg',
             '-',
             outputImg,
-        ], {
-            input: imageBuff,
-            maxBuffer: 50 * 1024 * 1024,
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
+        ], imageBuff);
     } else {
         if (isJpgBuffer(imageBuff)) {
             ext = 'jpeg';
@@ -73,6 +82,32 @@ async function readArchiveEntry(archivePath, entryName) {
     }
 }
 
+// Извлекает все entry, прошедшие filterFn, за одно открытие архива.
+// Возвращает [{name, buf}]. Ошибки — пустой массив (как readArchiveEntry).
+async function readArchiveEntries(archivePath, filterFn) {
+    const zipReader = new ZipReader();
+    try {
+        await zipReader.open(archivePath);
+        const result = [];
+        for (const name of Object.keys(zipReader.zipEntries)) {
+            if (filterFn && !filterFn(name))
+                continue;
+            try {
+                const buf = await zipReader.extractToBuf(name);
+                if (buf)
+                    result.push({name, buf});
+            } catch (e) {
+                // один битый entry не должен ломать остальные
+            }
+        }
+        return result;
+    } catch (e) {
+        return [];
+    } finally {
+        try { await zipReader.close(); } catch (e) {}
+    }
+}
+
 async function listArchiveEntries(archivePath) {
     const zipReader = new ZipReader();
     try {
@@ -89,6 +124,6 @@ async function listArchiveEntries(archivePath) {
 module.exports = {
     isJxlBuffer, isPngBuffer, isJpgBuffer,
     jxlConvert,
-    readArchiveEntry, listArchiveEntries,
+    readArchiveEntry, readArchiveEntries, listArchiveEntries,
     JXL_JPEG_QUALITY,
 };
