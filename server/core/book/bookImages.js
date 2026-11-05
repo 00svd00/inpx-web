@@ -11,8 +11,9 @@ function loadNativeBinding() {
     // dev/тесты: штатный загрузчик @napi-rs/image найдёт .node в node_modules.
     // module.require — динамический, pkg не включает @napi-rs/image в снапшот.
     if (!isPkg()) {
-        return module.require('@napi-rs/image');
-    }
+    // eslint-disable-next-line no-eval
+    return eval('require')('@napi-rs/image');
+}
 
     // pkg: статические require на dist/napi-assets/, чтобы pkg включил
     // нужный .node в снапшот (по require-цепочке + pkg.assets).

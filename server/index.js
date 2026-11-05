@@ -81,11 +81,6 @@ async function init() {
     setSevenZipPath(config.sevenZipPath);
     log(`sevenZipPath: ${getSevenZipPath() || 'not found'}`);
 
-    //djxl
-    const { setDjxlPath, resolveDjxl } = require('./core/DjxlResolver');
-    setDjxlPath(config.djxlPath);
-    log(`djxlPath: ${resolveDjxl() || 'not found'}`);
-
     //cli
     if (argv.help) {
         showHelp(defaultConfig);

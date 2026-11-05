@@ -735,7 +735,7 @@ class WebWorker {
                         await fs.writeFile(`${bookFile}${coverExt}`, cover);
                     } else {
                         const {libFolder, libFile} = bookInfo
-                        const jxlcover = await extractZipCoverAndConvert(this.config, hash, libFolder, libFile.slice(0,-4), ".png")
+                        const jxlcover = await extractZipCoverAndConvert(this.config, hash, libFolder, libFile.slice(0,-4));
                         if(jxlcover){
                             result.cover = jxlcover
                         }
