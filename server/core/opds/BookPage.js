@@ -56,8 +56,12 @@ class BookPage extends BasePage {
         }
 
         if (book.series) {
+            const firstAuthor = book.author ? book.author.split(',')[0].trim() : '';
+            let href = `/series?series=${encodeURIComponent('=' + book.series)}`;
+            if (firstAuthor)
+                href += `&author=${encodeURIComponent('=' + firstAuthor)}`;
             links.push({
-                href: `/series?series=${encodeURIComponent('=' + book.series)}`,
+                href,
                 title: `Серия: ${book.series}${book.serno ? ` #${book.serno}` : ''}`,
             });
         }

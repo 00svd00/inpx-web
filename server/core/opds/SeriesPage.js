@@ -25,6 +25,7 @@ class SeriesPage extends BasePage {
 
         const query = {
             series: req.query.series || '',
+            author: req.query.author || '',
             genre: req.query.genre || '',
             del: '0',
             
@@ -46,6 +47,43 @@ class SeriesPage extends BasePage {
 
             if (bookList.books) {
                 let books = bookList.books;
+
+                // author из URL (с '=' или без)
+                const authorParam = query.author && query.author[0] == '='
+                    ? query.author.substring(1)
+                    : (query.author || '');
+
+                // без author — проверить, сколько авторов у серии
+                if (!authorParam) {
+                    const authorsSet = new Set();
+                    for (const b of books) {
+                        for (const a of (b.author || '').split(',').map(s => s.trim()).filter(s => s))
+                            authorsSet.add(a);
+                    }
+                    const authors = Array.from(authorsSet).sort((a, b) => a.localeCompare(b));
+
+                    if (authors.length > 1) {
+                        // промежуточная страница: список авторов
+                        for (const author of authors) {
+                            entry.push(this.makeEntry({
+                                id: `series_author_${author}`,
+                                title: `Серия: ${query.series.substring(1)} [${this.bookAuthor(author)}]`,
+                                link: this.navLink({href: `/${this.id}?series=${encodeURIComponent(query.series)}&author=${encodeURIComponent('=' + author)}`}),
+                            }));
+                        }
+                        result.entry = entry;
+                        return this.makeBody(result, req);
+                    }
+                    // 1 автор — сразу книги (authorParam не задан, но автор один)
+                    // можно не фильтровать (все книги — этого автора)
+                } else {
+                    // фильтр по author
+                    books = books.filter(b => {
+                        const authors = (b.author || '').split(',').map(s => s.trim());
+                        return authors.includes(authorParam);
+                    });
+                }
+
                 const booksAll = this.filterBooks(books);
                 const filtered = (query.all ? booksAll : this.filterBooks(books, query));
                 const sorted = this.sortSeriesBooks(filtered);
