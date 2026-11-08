@@ -28,9 +28,26 @@ function loadNativeBinding() {
             if (arch === 'x64') return require('../../dist/napi-assets/image.darwin-x64.node');
         }
         if (platform === 'linux') {
-            if (arch === 'arm') return require('../../dist/napi-assets/image.linux-arm-gnueabihf.node');
-            if (arch === 'arm64') return require('../../dist/napi-assets/image.linux-arm64-gnu.node');
-            if (arch === 'x64') return require('../../dist/napi-assets/image.linux-x64-gnu.node');
+            if (platform === 'linux') {
+                // определить musl (Alpine) vs glibc
+                const isMusl = !(process.report && process.report.getReport().header.glibcVersionRuntime);
+
+                if (arch === 'arm') {
+                    return isMusl
+                        ? require('../../dist/napi-assets/image.linux-arm-musleabihf.node')
+                        : require('../../dist/napi-assets/image.linux-arm-gnueabihf.node');
+                }
+                if (arch === 'arm64') {
+                    return isMusl
+                        ? require('../../dist/napi-assets/image.linux-arm64-musl.node')
+                        : require('../../dist/napi-assets/image.linux-arm64-gnu.node');
+                }
+                if (arch === 'x64') {
+                    return isMusl
+                        ? require('../../dist/napi-assets/image.linux-x64-musl.node')
+                        : require('../../dist/napi-assets/image.linux-x64-gnu.node');
+                }
+            }
         }
     } catch (err) {
         console.error(`[jxlConvert] Не удалось загрузить нативный модуль для ${platform}-${arch}:`, err.message);

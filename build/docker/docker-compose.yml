@@ -1,0 +1,15 @@
+services:
+  inpx-web:
+    image: inpx-web:amd64
+    container_name: inpx-web
+    user: 1000:1000   # echo "$(id -u):$(id -g)"
+    environment:
+      - PKG_NATIVE_CACHE_PATH=/opt/inpx-web/pkg-cache
+    restart: unless-stopped
+    ports:
+      - "12380:12380"
+    volumes:
+      - ~/Downloads/Library:/library:ro
+      - ~/inpx-web-data:/data
+    command: ["--lib-dir=/library"]
+    # ENTRYPOINT уже содержит --data-dir=/data, command добавляет --lib-dir

@@ -31,6 +31,7 @@ OPDS-сервер доступен по адресу [http://127.0.0.1:12380/opd
     * [Кастомные OPDS фиды](#custom_feeds)
     * [Настройка https с помощью nginx](#https)
 * [Сборка релизов](#build)
+* [Сборка Docker образа](#docker)
 * [Запуск без сборки релиза](#native_run)
 * [Разработка](#development)
 
@@ -681,6 +682,24 @@ npm run release
 ```sh
 npm run release:armv7
 ```
+
+<a id="docker" />
+
+### Docker
+Скрипты для сборки расположены в `build/docker/`.
+Требуется современный Docker (23.0+).
+Контейнер собирается на базе Alpine 3.24
+
+```sh
+# amd64
+npm run release:docker
+
+# arm64
+npm run release:docker-arm64
+```
+Скрипты выкачивают актуальную сборку 7z с github и подкладывают вместе с бинарником inp-web в /opt/inpx-web/ внутри контейнера. 
+Пример compose файла: `build/docker/docker-compose.yml`.
+
 <a id="native_run" />
 
 ### Запуск без сборки релиза

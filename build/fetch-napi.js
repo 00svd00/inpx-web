@@ -15,7 +15,7 @@ if (!target) {
 const dashIndex = target.indexOf('-');
 const rest = target.substring(dashIndex + 1);
 const parts = rest.split('-');
-const targetOs = parts[0];                    // linux, win, macos
+const targetOs = parts[0];                    // linux, win, macos, alpine
 const targetArch = parts.slice(1).join('-');  // x64, arm64, armv7
 
 // Определяем суффикс пакета @napi-rs/image-*
@@ -24,12 +24,15 @@ if (targetOs === 'win') {
     napiPkgSuffix = `win32-${targetArch}-msvc`;
 } else if (targetOs === 'macos') {
     napiPkgSuffix = `darwin-${targetArch}`;
-} else {
+} else if (targetOs === 'alpine' || targetOs === 'linux') {
+    const isMusl = targetOs === 'alpine' || target.includes('-musl');
     if (targetArch === 'armv7') {
-        napiPkgSuffix = `linux-arm-gnueabihf`;
+        napiPkgSuffix = isMusl ? `linux-arm-musleabihf` : `linux-arm-gnueabihf`;
     } else {
-        napiPkgSuffix = `linux-${targetArch}-gnu`;
+        napiPkgSuffix = isMusl ? `linux-${targetArch}-musl` : `linux-${targetArch}-gnu`;
     }
+} else {
+    throw new Error(`Unknown target OS: ${targetOs}`);
 }
 
 const pkgName = `@napi-rs/image-${napiPkgSuffix}`;
