@@ -12,21 +12,39 @@
             <div class="row items-center top-panel bg-grey-3">
                 <q-input ref="search" v-model="search" class="col" outlined dense bg-color="white" placeholder="Найти" clearable />
             </div>
-            <div v-show="nodes.length" class="checkbox-tick-all">
-                <q-checkbox v-model="tickAll" size="36px" label="Выбрать/снять все" toggle-order="ft" @update:model-value="makeTickAll" />
-            </div>
             <q-tree
-                v-model:ticked="ticked"
                 v-model:expanded="expanded"
                 class="q-my-xs"
                 :nodes="nodes"
                 node-key="key"
-                tick-strategy="leaf"
                 selected-color="black"
                 :filter="search"
                 no-nodes-label="Жанров нет"
                 no-results-label="Ничего не найдено"
             >
+                <template #default-header="prop">
+                    <div class="row items-center full-width genre-node" @click.stop>
+                        <q-checkbox
+                            :model-value="clickState(prop.node)"
+                            :true-value="'include'"
+                            :false-value="'neutral'"
+                            :indeterminate-value="'exclude'"
+                            toggle-indeterminate
+                            toggle-order="ft"
+                            size="36px"
+                            class="q-mr-sm"
+                            @update:model-value="onCheckboxUpdate(prop.node, $event)"
+                        />
+                        <div
+                            class="col genre-label"
+                            :class="{
+                                'text-green-6 text-weight-bold': displayState(prop.node) === 'include',
+                                'text-red-6 text-weight-bold': displayState(prop.node) === 'exclude',
+                                'text-amber-8 text-weight-bold': displayState(prop.node) === 'mixed',
+                            }"
+                        >{{ prop.node.label }}</div>
+                    </div>
+                </template>
             </q-tree>
         </div>
 
@@ -58,11 +76,10 @@ const componentOptions = {
             this.$emit('update:modelValue', newValue);
         },
         genre() {
-            this.updateTicked();
+            this.updateFromProps();
         },
-        ticked() {
-            this.checkAllTicked();
-            this.updateGenre();
+        excludeGenre() {
+            this.updateFromProps();
         },
     }
 };
@@ -71,22 +88,23 @@ class GenreSelectDialog {
     _props = {
         modelValue: Boolean,
         genre: {type: String, value: ''},
+        excludeGenre: {type: String, value: ''},
         genreTree: Array,
     };
 
     dialogVisible = false;
 
     search = '';
-    ticked = [];
     expanded = [];
-    tickAll = false;
-    allKeys = [];
+
+    includeSet = new Set();
+    excludeSet = new Set();
 
     created() {
     }
 
     mounted() {
-        this.updateTicked();
+        this.updateFromProps();
     }
 
     async init() {
@@ -98,59 +116,91 @@ class GenreSelectDialog {
     get nodes() {
         const result = [];
 
-        this.allKeys = [];
         for (const section of this.genreTree) {
-            const rkey = `r-${section.name}`;
-            const sec = {label: section.name, key: rkey, children: []};
-
+            const sec = {label: section.name, key: `r-${section.name}`, children: []};
             for (const g of section.value) {
                 sec.children.push({label: g.name, key: g.value});
-                this.allKeys.push(g.value);
             }
-
-            result.push(sec);            
+            result.push(sec);
         }
 
         return result;
     }
 
-    makeTickAll() {
-        if (this.tickAll) {
-            const newTicked = [];
-            for (const key of this.allKeys) {
-                newTicked.push(key);
+    isSection(node) {
+        return !!(node.children && node.children.length);
+    }
+
+    // состояние листа
+    stateOf(key) {
+        if (this.includeSet.has(key))
+            return 'include';
+        if (this.excludeSet.has(key))
+            return 'exclude';
+        return 'neutral';
+    }
+
+    // состояние секции: include (все), exclude (все), neutral (все), mixed (иначе)
+    stateOfSection(section) {
+        const states = section.children.map(l => this.stateOf(l.key));
+        const allInc = states.length && states.every(s => s === 'include');
+        const allExc = states.length && states.every(s => s === 'exclude');
+        const allNeu = states.length && states.every(s => s === 'neutral');
+        if (allInc) return 'include';
+        if (allExc) return 'exclude';
+        if (allNeu) return 'neutral';
+        return 'mixed';
+    }
+
+    displayState(node) {
+        return this.isSection(node) ? this.stateOfSection(node) : this.stateOf(node.key);
+    }
+
+    clickState(node) {
+        const s = this.displayState(node);
+        // q-checkbox знает только три состояния; mixed мапим в exclude,
+        // чтобы клик из «смешанного» дал neutral (очистку)
+        return s === 'mixed' ? 'exclude' : s;
+    }
+
+    onCheckboxUpdate(node, newState) {
+        // newState: 'include' | 'exclude' | 'neutral' (из toggle-indeterminate)
+        if (this.isSection(node)) {
+            for (const leaf of node.children) {
+                if (newState === 'include') {
+                    this.includeSet.add(leaf.key);
+                    this.excludeSet.delete(leaf.key);
+                } else if (newState === 'exclude') {
+                    this.includeSet.delete(leaf.key);
+                    this.excludeSet.add(leaf.key);
+                } else {
+                    this.includeSet.delete(leaf.key);
+                    this.excludeSet.delete(leaf.key);
+                }
             }
-            this.ticked = newTicked;
         } else {
-            this.ticked = [];
-            this.tickAll = false;
-        }
-    }
-
-    checkAllTicked() {
-        const ticked = new Set(this.ticked);
-
-        let newTickAll = !!(this.nodes.length);
-        for (const key of this.allKeys) {
-            if (!ticked.has(key)) {
-                newTickAll = false;
-                break;
+            if (newState === 'include') {
+                this.includeSet.add(node.key);
+                this.excludeSet.delete(node.key);
+            } else if (newState === 'exclude') {
+                this.includeSet.delete(node.key);
+                this.excludeSet.add(node.key);
+            } else {
+                this.includeSet.delete(node.key);
+                this.excludeSet.delete(node.key);
             }
         }
-
-        if (this.ticked.length && !newTickAll) {
-            this.tickAll = undefined;
-        } else {
-            this.tickAll = newTickAll;
-        }
+        this.emitGenres();
     }
 
-    updateTicked() {
-        this.ticked = this.genre.split(',').filter(s => s);
+    updateFromProps() {
+        this.includeSet = new Set((this.genre || '').split(',').filter(Boolean));
+        this.excludeSet = new Set((this.excludeGenre || '').split(',').filter(Boolean));
     }
 
-    updateGenre() {
-        this.$emit('update:genre', this.ticked.join(','));
+    emitGenres() {
+        this.$emit('update:genre', Array.from(this.includeSet).join(','));
+        this.$emit('update:excludeGenre', Array.from(this.excludeSet).join(','));
     }
 
     okClick() {
@@ -168,9 +218,7 @@ export default vueComponent(GenreSelectDialog);
     padding: 5px;
 }
 
-.checkbox-tick-all {
-    border-bottom: 1px solid #bbbbbb;
-    margin-bottom: 7px;
-    padding: 5px 5px 2px 16px;
+.genre-node {
+    min-height: 28px;
 }
 </style>

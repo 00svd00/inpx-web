@@ -69,3 +69,45 @@ test('parseFeedDate: пусто/null/неизвестно', () => {
     assert.strictEqual(page.parseFeedDate(undefined), undefined);
     assert.strictEqual(page.parseFeedDate('abc'), 'abc');
 });
+
+test('normalize: сохраняет excludeGenre', () => {
+    const result = normalize({
+        feed1: {
+            name: 'Test',
+            type: 'author',
+            query: { genre: 'detective', excludeGenre: 'love' },
+        },
+    });
+    assert.strictEqual(result.feed1.query.genre, 'detective');
+    assert.strictEqual(result.feed1.query.excludeGenre, 'love');
+});
+
+test('normalize: excludeGenre как массив → строка через запятую', () => {
+    const result = normalize({
+        feed1: {
+            type: 'author',
+            query: { excludeGenre: ['love', 'love_all'] },
+        },
+    });
+    assert.strictEqual(result.feed1.query.excludeGenre, 'love,love_all');
+});
+
+test('normalize: недопустимый ключ отбрасывается', () => {
+    const result = normalize({
+        feed1: {
+            type: 'author',
+            query: { foo: 'bar' },
+        },
+    });
+    assert.strictEqual(result.feed1.query.foo, undefined);
+});
+
+test('normalize: пустой excludeGenre отбрасывается', () => {
+    const result = normalize({
+        feed1: {
+            type: 'author',
+            query: { excludeGenre: '' },
+        },
+    });
+    assert.strictEqual(result.feed1.query.excludeGenre, undefined);
+});

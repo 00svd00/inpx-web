@@ -44,6 +44,7 @@ class DbSearcher {
             result.push(q[f.field]);
         }
         result.push(q.ratingCount || ''); // виртуальное поле (reviews_index.declaredCount)
+        result.push(q.excludeGenre || ''); // исключаемые жанры (после expandGenre)
         return JSON.stringify(result);
     }
 
@@ -369,6 +370,20 @@ class DbSearcher {
             resultIds = idsArr[0];
         } else {
             resultIds = false;
+        }
+
+        // вычитание excludeGenre из resultIds
+        if (query.excludeGenre) {
+            if (!resultIds) {
+                // нет include-критериев — начинаем со всех книг
+                const all = await db.select({
+                    table: 'book',
+                    rawResult: true,
+                    where: `return new Uint32Array(@all())`,
+                });
+                resultIds = all[0].rawResult;
+            }
+            resultIds = await this.excludeByGenre(resultIds, query.excludeGenre);
         }
 
         // фильтр по числу оценок (reviews_index.declaredCount)
@@ -1047,6 +1062,63 @@ class DbSearcher {
                     result.push(r.id);
             }
             await utils.processLoop();
+        }
+
+        return new Uint32Array(result);
+    }
+
+    // вычитание из bookIds всех книг, у которых есть хотя бы один из excludeGenre.
+    // excludeGenre уже раскрыт через expandGenre в selectBookIds.
+    // Кешируется по book-ids-exclude-genre-<...>, независимо от include-критериев.
+    async excludeByGenre(bookIds, excludeGenre) {
+        const key = `book-ids-exclude-genre-${excludeGenre}`;
+        let excluded = await this.getCached(key);
+
+        if (excluded === null) {
+            const db = this.db;
+            const genreRows = await db.select({
+                table: 'genre',
+                rawResult: true,
+                where: `
+                    const genres = ${db.esc(excludeGenre.split(','))};
+
+                    const ids = new Set();
+                    for (const g of genres) {
+                        for (const id of @indexLR('value', g, g))
+                            ids.add(id);
+                    }
+
+                    const result = new Set();
+                    for (const id of ids) {
+                        const row = @unsafeRow(id);
+                        for (const bookId of row.bookIds)
+                            result.add(bookId);
+                    }
+
+                    return new Uint32Array(result);
+                `,
+            });
+
+            excluded = genreRows[0].rawResult;
+            await this.putCached(key, excluded);
+        }
+
+        if (!excluded.length)
+            return bookIds;
+
+        const excludedSet = new Set(excluded);
+        const result = [];
+        let proc = 0;
+        let nextProc = 0;
+        for (const id of bookIds) {
+            if (!excludedSet.has(id))
+                result.push(id);
+
+            proc++;
+            if (proc >= nextProc) {
+                nextProc += 10000;
+                await utils.processLoop();
+            }
         }
 
         return new Uint32Array(result);

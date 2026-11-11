@@ -6,7 +6,7 @@ const BasePage = require('./BasePage');
 const utils = require('../utils');
 
 const PAGE_LIMIT = 100;
-const ALLOWED_QUERY = new Set(['author', 'series', 'title', 'genre', 'lang', 'date', 'librate', 'ratingCount', 'ext']);
+const ALLOWED_QUERY = new Set(['author', 'series', 'title', 'genre', 'excludeGenre', 'lang', 'date', 'librate', 'ratingCount', 'ext']);
 const ALLOWED_TYPE = new Set(['author', 'series', 'title']);
 const ID_RE = /^[a-zA-Z0-9_-]+$/;
 

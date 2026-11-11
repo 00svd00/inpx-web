@@ -118,7 +118,7 @@
                                 @click.stop.prevent="selectGenre"
                             >
                                 <template v-if="genreNames" #append>
-                                    <q-icon name="la la-times-circle" class="q-field__focusable-action" @click.stop.prevent="search.genre = ''" />
+                                    <q-icon name="la la-times-circle" class="q-field__focusable-action" @click.stop.prevent="clearGenre" />
                                 </template>
 
                                 <q-tooltip v-if="genreNames && showTooltips" :delay="500" anchor="bottom middle" content-style="font-size: 80%" max-width="400px">
@@ -359,7 +359,7 @@
         </div>
 
         <SettingsDialog v-model="settingsDialogVisible" />
-        <SelectGenreDialog v-model="selectGenreDialogVisible" v-model:genre="search.genre" :genre-tree="genreTree" />
+        <SelectGenreDialog v-model="selectGenreDialogVisible" v-model:genre="search.genre" v-model:exclude-genre="search.excludeGenre" :genre-tree="genreTree" />
         <SelectLangDialog v-model="selectLangDialogVisible" v-model:lang="search.lang" :lang-list="langList" :lang-default="langDefault" />        
         <SelectLibRateDialog v-model="selectLibRateDialogVisible" v-model:librate="search.librate" />
         <SelectDateDialog v-model="selectDateDialogVisible" v-model:date="search.date" />
@@ -610,7 +610,7 @@ class Search {
         this.commit = this.$store.commit;
         this.api = this.$root.api;
 
-        this.generateDefaults(this.search, ['author', 'series', 'title', 'genre', 'lang', 'date', 'librate', 'ext', 'ratingCount']);
+        this.generateDefaults(this.search, ['author', 'series', 'title', 'genre', 'excludeGenre', 'lang', 'date', 'librate', 'ext', 'ratingCount']);
         this.search.setDefaults(this.search);
 
         this.loadSettings();
@@ -737,16 +737,27 @@ class Search {
     }
 
     get genreNames() {
-        let result = [];
-        const genre = this.search.genre.split(',');
+        const namesOf = (s) => {
+            const result = [];
+            for (const g of (s || '').split(',')) {
+                if (!g)
+                    continue;
+                const name = this.genreMap.get(g);
+                result.push(name || g);
+            }
+            return result;
+        };
 
-        for (const g of genre) {
-            const name = this.genreMap.get(g);
-            if (name)
-                result.push(name);
-        }
+        const inc = namesOf(this.search.genre);
+        const exc = namesOf(this.search.excludeGenre);
 
-        return result.join(', ');
+        const parts = [];
+        if (inc.length)
+            parts.push(inc.join(', '));
+        if (exc.length)
+            parts.push(`кроме: ${exc.join(', ')}`);
+
+        return parts.join('; ');
     }
 
     get librateNames() {
@@ -801,6 +812,7 @@ class Search {
         const s = this.search;
         const result = [];
         result.push(s.genre ? 'Жанр' : '');
+        result.push(s.excludeGenre ? 'Исключить жанры' : '');
         result.push(s.date ? 'Дата поступления' : '');
         result.push(s.librate ? 'Оценка' : '');
         result.push(s.ratingCount ? 'Число оценок' : '');
@@ -1040,6 +1052,11 @@ class Search {
         this.selectGenreDialogVisible = true;
     }    
 
+    clearGenre() {
+        this.search.genre = '';
+        this.search.excludeGenre = '';
+    }
+
     selectLang() {
         this.hideTooltip();
         this.selectLangDialogVisible = true;
@@ -1199,6 +1216,7 @@ class Search {
             series: query.series,
             title: query.title,
             genre: query.genre,
+            excludeGenre: query.excludeGenre,
             lang: (typeof(query.lang) == 'string' ? query.lang : this.langDefault),
             date: query.date,
             librate: query.librate,

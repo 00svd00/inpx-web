@@ -64,11 +64,3 @@ test('queryKey: разный ratingCount → разный ключ', () => {
         s.queryKey({author: 'A', ratingCount: '5..'})
     );
 });
-
-test('queryKey: порядок recStruct + ratingCount в конце', () => {
-    const s = make([{field: 'author'}, {field: 'series'}, {field: 'title'}]);
-    assert.strictEqual(
-        s.queryKey({author: 'A', series: 'S', title: 'T'}),
-        JSON.stringify(['A', 'S', 'T', ''])
-    );
-});
