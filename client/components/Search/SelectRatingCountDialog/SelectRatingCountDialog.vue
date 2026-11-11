@@ -25,7 +25,7 @@
 
         <template #footer>
             <q-btn class="q-px-md q-ml-sm" color="primary" dense no-caps :disabled="error !== ''" @click="apply">
-                Применить
+                OK
             </q-btn>
         </template>
     </Dialog>
@@ -43,8 +43,10 @@ const componentOptions = {
         modelValue(newValue) {
             this.dialogVisible = newValue;
         },
-        dialogVisible(newValue) {
+        dialogVisible(newValue, oldValue) {
             this.$emit('update:modelValue', newValue);
+            if (oldValue === true && newValue === false)
+                this.emitValue();
         },
         ratingCount: {
             handler(newValue) {
@@ -112,10 +114,10 @@ class SelectRatingCountDialog {
             this.apply();
     }
 
-    apply() {
+    emitValue() {
         this.validate();
         if (this.error)
-            return;
+            return false;
 
         let value = '';
         if (this.from && this.to) {
@@ -130,7 +132,14 @@ class SelectRatingCountDialog {
         }
 
         this.$emit('update:ratingCount', value);
-        this.dialogVisible = false;
+        return true;
+    }
+
+    apply() {
+        this.validate();
+        if (this.error)
+            return;
+        this.dialogVisible = false;   // emitValue вызовется из watch dialogVisible
     }
 }
 

@@ -116,7 +116,18 @@ class SelectDateDialog {
         return (this.splitDate.to ? utils.sqlDateFormat(this.splitDate.to) : 'Не указано');
     }
 
+    get error() {
+        if (!this.from || !this.to)
+            return '';
+        if (this.from > this.to)
+            return 'Дата «С» не может быть больше даты «По»';
+        return '';
+    }
+
     save() {
+        if (this.from && this.to && this.from > this.to)
+            this.$root.notify.warning('Дата «С» не может быть больше даты «По»');
+
         let d = this.from;
         if (this.to)
             d += `,${this.to}`;

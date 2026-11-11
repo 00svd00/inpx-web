@@ -39,14 +39,13 @@ const componentOptions = {
         modelValue(newValue) {
             this.dialogVisible = newValue;
         },
-        dialogVisible(newValue) {
+        dialogVisible(newValue, oldValue) {
             this.$emit('update:modelValue', newValue);
+            if (oldValue === true && newValue === false)
+                this.updateLibrate();
         },
         librate() {
             this.updateTicked();
-        },
-        ticked() {
-            this.updateLibrate();
         },
     }
 };

@@ -72,8 +72,10 @@ const componentOptions = {
             if (newValue)
                 this.init();//no await
         },
-        dialogVisible(newValue) {
+        dialogVisible(newValue, oldValue) {
             this.$emit('update:modelValue', newValue);
+            if (oldValue === true && newValue === false)
+                this.emitGenres();
         },
         genre() {
             this.updateFromProps();
@@ -190,7 +192,6 @@ class GenreSelectDialog {
                 this.excludeSet.delete(node.key);
             }
         }
-        this.emitGenres();
     }
 
     updateFromProps() {

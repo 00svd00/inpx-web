@@ -60,15 +60,16 @@ const componentOptions = {
             if (newValue)
                 this.init();//no await
         },
-        dialogVisible(newValue) {
+        dialogVisible(newValue, oldValue) {
             this.$emit('update:modelValue', newValue);
+            if (oldValue === true && newValue === false)
+                this.updateExt();
         },
         ext() {
             this.updateTicked();
         },
         ticked() {
             this.checkAllTicked();
-            this.updateExt();
         },
     }
 };
