@@ -307,20 +307,20 @@
                     </div><!-- 1-2 -->
                 </div><!-- 1 -->
                 <!-- 2 -->
-                <div class="column">
-                    <DivBtn
+                <div class="column items-center">
+                    <div
                         v-show="!isExtendedSearch && (extendedParams || !extendedParamsMessage)"
-                        class="text-grey-6" :size="16" :icon-size="14"
-                        :icon="(extendedParams ? 'la la-angle-double-up' : 'la la-angle-double-down')"
-                        no-shadow
+                        class="ext-toggle text-primary bg-cyan-1"
                         @click.stop.prevent="extendedParams = !extendedParams"
                     >
-                        <template #tooltip>
-                            <q-tooltip :delay="1500" anchor="bottom middle" content-style="font-size: 80%" max-width="400px">
-                                {{ `${(extendedParams ? 'Скрыть' : 'Показать')} дополнительные критерии поиска` }}
-                            </q-tooltip>
-                        </template>
-                    </DivBtn>
+                        <q-icon
+                            :name="(extendedParams ? 'la la-angle-double-up' : 'la la-angle-double-down')"
+                            size="14px"
+                        />
+                        <q-tooltip :delay="1500" anchor="bottom middle" content-style="font-size: 80%" max-width="400px">
+                            {{ `${(extendedParams ? 'Скрыть' : 'Показать')} дополнительные критерии поиска` }}
+                        </q-tooltip>
+                    </div>
                 </div><!-- 2 -->
             </div>
             <!-- Tool Panel end -->
@@ -1409,4 +1409,21 @@ export default vueComponent(Search);
     border-bottom: 2px solid #ddd;
     margin: 5px 0 5px 0;
 }
+
+.ext-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 16px;
+    margin-top: -1px;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, .1);
+    cursor: pointer;
+    transition: background .15s;
+}
+.ext-toggle:hover {
+    background: #b2ebf2;
+}
+
 </style>
