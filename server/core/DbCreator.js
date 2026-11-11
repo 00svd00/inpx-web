@@ -790,6 +790,13 @@ class DbCreator {
             hash: {field: '_uid', type: 'string', depth: 100, unique: true},
         });
 
+        if (table === 'reviews_index') {
+            await db.create({
+                in: table,
+                index: {field: 'declaredCount', type: 'number', depth: 1000},
+            });
+        }
+
         await db.close({table});
         await db.freeMemory();
         utils.freeMemory();

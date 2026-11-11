@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const base = require('../../server/config/base');
 
 test('dbVersion — снапшот (менять только при релизе)', () => {
-    assert.strictEqual(base.dbVersion, '13');
+    assert.strictEqual(base.dbVersion, '14');
 });
 
 test('reviews/authorsBio/opdsBookAddonsInCard/favorites — инварианты', () => {

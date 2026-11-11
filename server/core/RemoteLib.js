@@ -73,6 +73,9 @@ class RemoteLib {
 
         if (cfg.protocolVersion !== PROTOCOL_VERSION)
             throw new Error(`protocol_mismatch: provider=${cfg.protocolVersion}, consumer=${PROTOCOL_VERSION}. Update provider or consumer.`);
+        
+        if (String(cfg.dbVersion) !== String(this.config.dbVersion))
+            throw new Error(`dbVersion_mismatch: provider=${cfg.dbVersion}, consumer=${this.config.dbVersion}. Update provider or consumer.`);
 
         this.providerProtocolVersion = cfg.protocolVersion;
         this.providerFeatures = cfg.features || {};

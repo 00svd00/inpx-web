@@ -1007,61 +1007,52 @@ class DbSearcher {
     async filterByRatingCount(bookIds, ratingSpec) {
         const range = this.parseRatingCount(ratingSpec);
         if (!range)
-            return bookIds; // невалидно — не фильтруем
+            return bookIds;
 
         const db = this.db;
 
-        // 1) reviews_index → Set folder#file, где declaredCount в диапазоне
+        // 1) reviews_index → Set bookId, где declaredCount в диапазоне
+        //    @indexLR('declaredCount', from, to) — только нужные записи,
+        //    не полный проход по 325k
         let keysRows;
         try {
             keysRows = await db.select({
                 table: 'reviews_index',
                 rawResult: true,
                 where: `
-                    const from = ${range.from === null ? 'null' : db.esc(range.from)};
-                    const to = ${range.to === null ? 'null' : db.esc(range.to)};
-                    const keys = [];
-                    for (const id of @all()) {
+                    const from = ${range.from === null ? 'undefined' : range.from};
+                    const to = ${range.to === null ? 'undefined' : range.to};
+                    const ids = [];
+                    for (const id of @indexLR('declaredCount', from, to)) {
                         const row = @unsafeRow(id);
-                        const c = row.declaredCount || 0;
-                        if ((from === null || c >= from) && (to === null || c <= to))
-                            keys.push(row._uid);
+                        if (row.bookIds)
+                            for (const bid of row.bookIds)
+                                ids.push(bid);
                     }
-                    return keys;
+                    return ids;
                 `,
             });
         } catch (e) {
-            // reviews_index не открыт / недоступен — не фильтруем
+            // reviews_index не открыт / индекс недоступен — не фильтруем
             return bookIds;
         }
         const keysSet = new Set(keysRows[0].rawResult);
         if (!keysSet.size)
             return new Uint32Array(0);
 
-        // 2) bookIds → батчи по 5000, @unsafeRow, фильтр в JS по keysSet
+        // 2) bookIds → проверка keysSet.has(id), без @unsafeRow по book
         const result = [];
-        const chunkSize = 5000;
-        const arr = Array.from(bookIds);
-        for (let i = 0; i < arr.length; i += chunkSize) {
-            const chunk = arr.slice(i, i + chunkSize);
-            const rows = await db.select({
-                table: 'book',
-                rawResult: true,
-                where: `
-                    const result = [];
-                    for (const id of ${db.esc(chunk)}) {
-                        const row = @unsafeRow(id);
-                        result.push({id, folder: row.folder, file: row.file, ext: row.ext});
-                    }
-                    return result;
-                `,
-            });
-            for (const r of rows[0].rawResult) {
-                const key = `${(r.folder || '').replace(/\.zip$/i, '.7z')}#${r.file}.${r.ext}`;
-                if (keysSet.has(key))
-                    result.push(r.id);
+        let proc = 0;
+        let nextProc = 0;
+        for (const id of bookIds) {
+            if (keysSet.has(id))
+                result.push(id);
+
+            proc++;
+            if (proc >= nextProc) {
+                nextProc += 10000;
+                await utils.processLoop();
             }
-            await utils.processLoop();
         }
 
         return new Uint32Array(result);

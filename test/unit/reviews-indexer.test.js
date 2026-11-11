@@ -26,16 +26,27 @@ test('build: booksMap + monthsMap → rows, _uid = folder#file, hash-индек�
 
         const fake = new FakeArchive({
             files: new Map([[`${additionalZip}#books.json`, Buffer.from(JSON.stringify([
-                {count: 3, file: 'f1.fb2', folder: 'fo', sum: 15},
-                {count: 1, file: 'f2.fb2', folder: 'fo', sum: 5},
+                {count: 3, file: 'f1.fb2', folder: 'fo.7z', sum: 15},
+                {count: 1, file: 'f2.fb2', folder: 'fo.7z', sum: 5},
             ]))]]),
             lists: new Map([
-                [a202401, ['fo#f1.fb2', 'fo#f3.fb2']],
-                [a202402, ['fo#f1.fb2']],
+                [a202401, ['fo.7z#f1.fb2', 'fo.7z#f3.fb2']],
+                [a202402, ['fo.7z#f1.fb2']],
             ]),
         });
 
         const db = new FakeDb();
+        const bookRows = [
+            {id: 1, folder: 'fo.zip', file: 'f1', ext: 'fb2'},
+            {id: 2, folder: 'fo.zip', file: 'f2', ext: 'fb2'},
+            {id: 3, folder: 'fo.zip', file: 'f3', ext: 'fb2'},
+        ];
+        const origSelect = db.select.bind(db);
+        db.select = async (opts) => {
+            if (opts.table === 'book' && opts.rawResult)
+                return [{rawResult: bookRows}];
+            return origSelect(opts);
+        };
         const indexer = new ReviewsIndexer({libDir: dir, lowMemoryMode: false});
         indexer.archive = fake;
 
@@ -46,13 +57,17 @@ test('build: booksMap + monthsMap → rows, _uid = folder#file, hash-индек�
         const rows = db.tables.get('reviews_index');
         const byUid = new Map(rows.map(r => [r._uid, r]));
 
-        assert.deepStrictEqual(byUid.get('fo#f1.fb2').months, ['202401', '202402']);
-        assert.strictEqual(byUid.get('fo#f1.fb2').declaredCount, 3);
-        assert.strictEqual(byUid.get('fo#f1.fb2').sum, 15);
-        assert.deepStrictEqual(byUid.get('fo#f2.fb2').months, []);
-        assert.strictEqual(byUid.get('fo#f2.fb2').declaredCount, 1);
-        assert.deepStrictEqual(byUid.get('fo#f3.fb2').months, ['202401']);
-        assert.strictEqual(byUid.get('fo#f3.fb2').declaredCount, 0);
+        assert.deepStrictEqual(byUid.get('fo.7z#f1.fb2').months, ['202401', '202402']);
+        assert.strictEqual(byUid.get('fo.7z#f1.fb2').declaredCount, 3);
+        assert.strictEqual(byUid.get('fo.7z#f1.fb2').sum, 15);
+        assert.strictEqual(byUid.get('fo.7z#f1.fb2').bookIds[0], 1);
+        assert.deepStrictEqual(byUid.get('fo.7z#f2.fb2').months, []);
+        assert.strictEqual(byUid.get('fo.7z#f2.fb2').declaredCount, 1);
+        assert.strictEqual(byUid.get('fo.7z#f2.fb2').bookIds[0], 2);
+        assert.deepStrictEqual(byUid.get('fo.7z#f3.fb2').months, ['202401']);
+        assert.strictEqual(byUid.get('fo.7z#f3.fb2').declaredCount, 0);
+        assert.strictEqual(byUid.get('fo.7z#f3.fb2').bookIds[0], 3);
+        assert.ok(Array.isArray(byUid.get('fo.7z#f1.fb2').bookIds));
 
         assert.ok(db.hashes.get('reviews_index').has('_uid'));
         assert.strictEqual(progress[progress.length - 1].progress, 1);
@@ -64,6 +79,17 @@ test('build: нет YYYYMM-архивов → 0, progress 1', async () => {
     try {
         const {additionalZip} = await prepareReviewsDir(dir, {months: {}});  // additional.zip есть, месяцев нет
         const db = new FakeDb();
+        const bookRows = [
+            {id: 1, folder: 'fo.zip', file: 'f1', ext: 'fb2'},
+            {id: 2, folder: 'fo.zip', file: 'f2', ext: 'fb2'},
+            {id: 3, folder: 'fo.zip', file: 'f3', ext: 'fb2'},
+        ];
+        const origSelect = db.select.bind(db);
+        db.select = async (opts) => {
+            if (opts.table === 'book' && opts.rawResult)
+                return [{rawResult: bookRows}];
+            return origSelect(opts);
+        };
         const indexer = new ReviewsIndexer({libDir: dir, lowMemoryMode: false});
         indexer.archive = new FakeArchive({
             files: new Map([[`${additionalZip}#books.json`, Buffer.from('[]')]]),

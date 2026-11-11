@@ -60,6 +60,36 @@ class ReviewsIndexer {
             callback({progress: 0.05 + 0.85 * processed / months.length});
         }
 
+        // Map<key, bookIds[]> из book:
+        //   key = folder(.7z)#file.ext — формат books.json / reviews_index
+        //   book.folder (.zip) → .7z; book.file + '.' + book.ext
+        // Дубли (одна книга в разных сериях после слияния библиотек) накапливаются
+        // в массив bookIds — обратный поиск и ratingCount увидят все.
+        const bookIdMap = new Map();
+        const bookRows = await db.select({
+            table: 'book',
+            rawResult: true,
+            where: `
+                const result = [];
+                for (const id of @all()) {
+                    const r = @unsafeRow(id);
+                    result.push({id: r.id, folder: r.folder, file: r.file, ext: r.ext});
+                }
+                return result;
+            `,
+        });
+        for (const r of bookRows[0].rawResult) {
+            const folder = (r.folder || '').replace(/\.zip$/i, '.7z');
+            const file = `${r.file}.${r.ext}`;
+            const key = `${folder}#${file}`;
+            let arr = bookIdMap.get(key);
+            if (!arr) {
+                arr = [];
+                bookIdMap.set(key, arr);
+            }
+            arr.push(r.id);
+        }
+
         const allKeys = new Set([...booksMap.keys(), ...monthsMap.keys()]);
         const rows = [];
 
@@ -67,6 +97,10 @@ class ReviewsIndexer {
             const idx = key.indexOf('#');
             if (idx < 0)
                 continue;
+
+            const bookIds = bookIdMap.get(key);
+            if (!bookIds || !bookIds.length)
+                continue;   // книги нет в book (отфильтрована/удалена) — пропускаем
 
             const folder = key.substring(0, idx);
             const file = key.substring(idx + 1);
@@ -80,6 +114,7 @@ class ReviewsIndexer {
                 declaredCount: bj.declaredCount,
                 sum: bj.sum,
                 _uid: key,
+                bookIds,
             });
         }
 
@@ -107,6 +142,11 @@ class ReviewsIndexer {
             in: 'reviews_index',
             hash: {field: '_uid', type: 'string', depth: 100, unique: true},
         });
+
+        await db.create({
+           in: 'reviews_index',
+           index: {field: 'declaredCount', type: 'number', depth: 1000},
+       });
 
         await db.close({table: 'reviews_index'});
         await db.freeMemory();
