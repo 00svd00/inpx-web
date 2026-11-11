@@ -609,11 +609,12 @@ Options:
             }
         },
     "detective_2010": {
-            "name": "Все детективы за 2010 год",
+            "name": "Все детективы за 2010 год кроме книг про любовь",
             "active": true,
             "type": "author",
             "query": {
                 "genre": "det_classic,det_police,det_action,det_irony,det_history,det_espionage,det_crime,det_political,det_maniac,det_hard,thriller,detective,det_su",
+                "excludeGenre": "love_contemporary,love_history,love_detective,love_short,love_erotica,love,love_sf,love_hard",
                 "date": "2010-01-01,2010-12-31"
             }
         }
