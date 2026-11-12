@@ -20,6 +20,8 @@ module.exports = {
     external: '',
     customOpdsFeeds: false,           // разрешить кастомные OPDS-фиды
     customOpdsFeedsFile: '',          // путь к JSON; пусто → dataDir/custom-opds-feeds.json
+    pluginsEnabled: false,            // включить загрузку плагинов
+    pluginsDir: '',                   // каталог плагинов; пусто → <dataDir>/plugins
     sevenZipPath: '',
 
     allowConfigRewrite: false,

@@ -62,6 +62,7 @@ async function init() {
     config.bookPathStatic = `${config.rootPathStatic}/book`;
     config.bookDir = `${config.publicFilesDir}/book`;
     config.authorDir = `${config.publicFilesDir}/author`;
+    config.pluginsDir = config.pluginsDir || `${config.dataDir}/plugins`;
 
     configManager.config = config;
 
@@ -218,6 +219,14 @@ async function main() {
 
     const { WebSocketController } = require('./controllers');
     new WebSocketController(wss, webAccess, config);
+
+    const WebWorker = require('./core/WebWorker');
+    const webWorker = new WebWorker(config);
+
+    const PluginManager = require('./core/PluginManager');
+    const pluginManager = new PluginManager(config, webWorker);
+    ayncExit.add(() => pluginManager.stopAll());
+    await pluginManager.start();
 
     if (config.logQueries) {
         logQueries(app);

@@ -1,4 +1,6 @@
 /node_modules
 /server/.inpx-web*
 /dist
+plugins/*/config.json
+plugins/*/node_modules/
 dev*.sh

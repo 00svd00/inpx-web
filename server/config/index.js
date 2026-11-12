@@ -14,6 +14,8 @@ const propsToSave = [
     'externalToolsConfig',
     'customOpdsFeeds',
     'customOpdsFeedsFile',
+    'pluginsEnabled',
+    'pluginsDir',
     'sevenZipPath',
     'allowConfigRewrite',
     'allowUnsafeFilter',
