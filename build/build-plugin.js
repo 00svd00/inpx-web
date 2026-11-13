@@ -44,7 +44,7 @@ async function collectFiles(dir, base = '', out = [], inNodeModules = false) {
     return out;
 }
 
-async function buildPlugin(id) {
+async function buildPlugin(id, opts = {}) {
     const pluginDir = path.join(pluginsDir, id);
 
     if (!await fs.pathExists(pluginDir))
@@ -54,13 +54,28 @@ async function buildPlugin(id) {
     if (!await fs.pathExists(entry))
         throw new Error(`plugin has no index.js: ${pluginDir}`);
 
+    const nm = path.join(pluginDir, 'node_modules');
+    const lock = path.join(pluginDir, 'package-lock.json');
+
+    // --clean: удалить node_modules и package-lock.json перед установкой
+    if (opts.clean) {
+        if (await fs.pathExists(nm)) {
+            console.log(`[${id}] clean: rm -rf node_modules`);
+            await fs.remove(nm);
+        }
+        if (await fs.pathExists(lock)) {
+            console.log(`[${id}] clean: rm package-lock.json`);
+            await fs.remove(lock);
+        }
+    }
+
+
     const pkgFile = path.join(pluginDir, 'package.json');
     if (await fs.pathExists(pkgFile)) {
         const pkg = JSON.parse(await fs.readFile(pkgFile, 'utf8'));
         const deps = Object.keys(pkg.dependencies || {});
         if (deps.length) {
-            const nm = path.join(pluginDir, 'node_modules');
-            if (!await fs.pathExists(nm)) {
+            if (opts.clean || opts.forceInstall || !await fs.pathExists(nm)) {
                 console.log(`[${id}] npm install --omit=dev`);
                 execSync('npm install --omit=dev --no-audit --no-fund', {
                     cwd: pluginDir,
@@ -100,10 +115,16 @@ async function buildPlugin(id) {
 }
 
 async function main() {
-    const id = process.argv[2];
+    const args = process.argv.slice(2).filter(a => !a.startsWith('--'));
+    const flags = process.argv.slice(2).filter(a => a.startsWith('--'));
+    const id = args[0];
+    const opts = {
+        clean: flags.includes('--clean'),
+        forceInstall: flags.includes('--force-install'),
+    };
 
     if (id) {
-        await buildPlugin(id);
+        await buildPlugin(id, opts);
         return;
     }
 
@@ -121,7 +142,7 @@ async function main() {
     }
 
     for (const name of names)
-        await buildPlugin(name);
+        await buildPlugin(name, opts);
 }
 
 main().catch(e => {

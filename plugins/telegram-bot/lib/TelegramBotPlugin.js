@@ -1,4 +1,4 @@
-const TelegramBot = require('node-telegram-bot-api');
+const { Bot } = require('node-telegram-bot-api');
 
 const { SessionStore } = require('./SessionStore');
 const { makeAccess } = require('./access');
@@ -11,7 +11,8 @@ class TelegramBotPlugin {
         this.bot = null;
         this.sessions = new SessionStore();
         this.access = makeAccess(config);
-        this.limit = Math.min(parseInt(config.maxResults, 10) || 10, 90); // Telegram: inline_keyboard ≤ 100 кнопок; запас на «Без серии» + nav + «Меню»
+        // Telegram: inline_keyboard <= 100 кнопок; запас на «Без серии» + nav + «Меню»
+        this.limit = Math.min(parseInt(config.maxResults, 10) || 10, 90);
     }
 
     async start() {
@@ -38,8 +39,13 @@ class TelegramBotPlugin {
             return;
         }
 
-        this.bot = new TelegramBot(config.token, { polling: true });
-        this.sessions.startCleanup();
+        this.bot = new Bot(config.token);
+
+        // централизованная обработка ошибок (замена polling_error)
+        this.bot.catch((err, ctx) => {
+            const chatId = ctx && ctx.chat ? ctx.chat.id : '-';
+            api.log(LM_ERR, `[telegram-bot][${chatId}] handler error: ${err && err.message ? err.message : err}`);
+        });
 
         const ctx = {
             api,
@@ -52,9 +58,8 @@ class TelegramBotPlugin {
 
         registerAll(this.bot, ctx);
 
-        this.bot.on('polling_error', (err) => {
-            api.log(LM_ERR, `[telegram-bot] polling_error: ${err.message}`);
-        });
+        this.sessions.startCleanup();
+        this.bot.startPolling();
 
         api.log('[telegram-bot] started');
     }
@@ -62,7 +67,7 @@ class TelegramBotPlugin {
     async stop() {
         this.sessions.stopCleanup();
         if (this.bot) {
-            try { await this.bot.stopPolling(); } catch (e) {}
+            try { await this.bot.stop(); } catch (e) {}
             this.bot = null;
         }
     }

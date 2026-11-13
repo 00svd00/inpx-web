@@ -1,4 +1,4 @@
-const { searchFieldKeyboard } = require('../keyboards');
+const { searchFieldKeyboard, authorsKeyboard, seriesKeyboard, booksKeyboard } = require('../keyboards');
 const { escapeHtml, truncate, safeEdit, formatAuthorsList, formatSeriesList, formatBooksList } = require('../formatters');
 
 function register(bot, ctx) {
@@ -11,13 +11,12 @@ function register(bot, ctx) {
         const text = `🔍 Запрос: <b>${escapeHtml(truncate(searchText, 100))}</b>\n\nЧто искать?`;
         const opts = { parse_mode: 'HTML', reply_markup: searchFieldKeyboard() };
         if (messageId)
-            return safeEdit(bot, text, { chat_id: chatId, message_id: messageId, ...opts });
-        return bot.sendMessage(chatId, text, opts);
+            return safeEdit(bot, chatId, messageId, text, opts);
+        return bot.api.sendMessage({ chat_id: chatId, text, ...opts });
     };
 
     ctx.renderSearchFields = renderSearchFields;
 
-    // ---- результаты авторов/серий/книг ----
     const renderAuthors = async (chatId, messageId, term, offset = 0) => {
         const s = sessions.get(chatId);
         let res;
@@ -25,9 +24,9 @@ function register(bot, ctx) {
             res = await api.search('author', { author: term, del: '0', limit, offset });
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
-                return bot.sendMessage(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
+                return bot.api.sendMessage({ chat_id: chatId, text: '⏳ Индекс загружается, попробуйте через несколько секунд.' });
             api.log(LM_ERR, `[telegram-bot][${chatId}] search author failed: ${e.message}`);
-            return bot.sendMessage(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+            return bot.api.sendMessage({ chat_id: chatId, text: `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, parse_mode: 'HTML' });
         }
 
         s.mode = 'authors';
@@ -43,11 +42,11 @@ function register(bot, ctx) {
         const showNext = offset + limit < res.totalFound;
 
         const text = formatAuthorsList(res.found, res.totalFound);
-        const keyboard = require('../keyboards').authorsKeyboard(res.found, page, totalPages, showPrev, showNext);
+        const keyboard = authorsKeyboard(res.found, page, totalPages, showPrev, showNext);
         const opts = { parse_mode: 'HTML', reply_markup: keyboard };
         if (messageId)
-            return safeEdit(bot, text, { chat_id: chatId, message_id: messageId, ...opts });
-        return bot.sendMessage(chatId, text, opts);
+            return safeEdit(bot, chatId, messageId, text, opts);
+        return bot.api.sendMessage({ chat_id: chatId, text, ...opts });
     };
 
     const renderSeries = async (chatId, messageId, term, offset = 0) => {
@@ -57,9 +56,9 @@ function register(bot, ctx) {
             res = await api.search('series', { series: term, del: '0', limit, offset });
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
-                return bot.sendMessage(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
+                return bot.api.sendMessage({ chat_id: chatId, text: '⏳ Индекс загружается, попробуйте через несколько секунд.' });
             api.log(LM_ERR, `[telegram-bot][${chatId}] search series failed: ${e.message}`);
-            return bot.sendMessage(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+            return bot.api.sendMessage({ chat_id: chatId, text: `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, parse_mode: 'HTML' });
         }
 
         s.mode = 'series';
@@ -75,13 +74,12 @@ function register(bot, ctx) {
         const showNext = offset + limit < res.totalFound;
 
         const text = formatSeriesList(res.found, res.totalFound);
-        // authorId тут нет (поиск серий по названию) — «Без серии» не показываем
-        const keyboard = require('../keyboards').seriesKeyboard(res.found, 0, page, totalPages, showPrev, showNext);
-        // убираем кнопку «Без серии» (authorId=0) — см. seriesKeyboard: если authorId 0, не добавлять
+        // authorId = 0 — «Без серии» не показываем (поиск серий по названию)
+        const keyboard = seriesKeyboard(res.found, 0, page, totalPages, showPrev, showNext);
         const opts = { parse_mode: 'HTML', reply_markup: keyboard };
         if (messageId)
-            return safeEdit(bot, text, { chat_id: chatId, message_id: messageId, ...opts });
-        return bot.sendMessage(chatId, text, opts);
+            return safeEdit(bot, chatId, messageId, text, opts);
+        return bot.api.sendMessage({ chat_id: chatId, text, ...opts });
     };
 
     const renderBooks = async (chatId, messageId, query, offset = 0, backCallback = 'menu:main') => {
@@ -91,15 +89,14 @@ function register(bot, ctx) {
             res = await api.bookSearch(Object.assign({}, query, { limit, offset }));
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
-                return bot.sendMessage(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
+                return bot.api.sendMessage({ chat_id: chatId, text: '⏳ Индекс загружается, попробуйте через несколько секунд.' });
             api.log(LM_ERR, `[telegram-bot][${chatId}] bookSearch failed: ${e.message}`);
-            return bot.sendMessage(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+            return bot.api.sendMessage({ chat_id: chatId, text: `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, parse_mode: 'HTML' });
         }
 
         s.mode = 'books';
         s.offset = offset;
         s.pageContext = { kind: 'books', query, backCallback };
-        // кеш книг для book:<uid> (карточка)
         s.lastBooks = res.found || [];
 
         const totalPages = Math.ceil(res.totalFound / limit) || 1;
@@ -108,11 +105,11 @@ function register(bot, ctx) {
         const showNext = offset + limit < res.totalFound;
 
         const text = formatBooksList(res.found, res.totalFound);
-        const keyboard = require('../keyboards').booksKeyboard(res.found, page, totalPages, showPrev, showNext, backCallback);
+        const keyboard = booksKeyboard(res.found, page, totalPages, showPrev, showNext, backCallback);
         const opts = { parse_mode: 'HTML', reply_markup: keyboard };
         if (messageId)
-            return safeEdit(bot, text, { chat_id: chatId, message_id: messageId, ...opts });
-        return bot.sendMessage(chatId, text, opts);
+            return safeEdit(bot, chatId, messageId, text, opts);
+        return bot.api.sendMessage({ chat_id: chatId, text, ...opts });
     };
 
     ctx.renderAuthors = renderAuthors;
@@ -120,8 +117,9 @@ function register(bot, ctx) {
     ctx.renderBooks = renderBooks;
 
     // свободный текст → «Что искать?»
-    bot.on('message', api.guard('onMessage', async (msg) => {
-        if (!msg.text) return;
+    bot.on('message', api.guard('onMessage', async (ctx2) => {
+        const msg = ctx2.message;
+        if (!msg || !msg.text) return;
         if (msg.text.startsWith('/')) return;
         if (!await access.ensureAuth(bot, sessions.get(msg.chat.id), msg, api)) return;
         const text = msg.text.trim();
@@ -129,36 +127,31 @@ function register(bot, ctx) {
         return renderSearchFields(msg.chat.id, null, text);
     }));
 
-    // search:<field> — выбрать поле и выполнить поиск по сохранённому searchText
-    bot.on('callback_query', api.guard('onSearchField', async (query) => {
-        const data = query.data || '';
+    // search:<field>
+    bot.on('callback_query', api.guard('onSearchField', async (ctx2) => {
+        const data = ctx2.callbackQuery && ctx2.callbackQuery.data ? ctx2.callbackQuery.data : '';
         if (!data.startsWith('search:')) return;
 
-        const chatId = query.message.chat.id;
-        const messageId = query.message.message_id;
+        const chatId = ctx2.chat.id;
         const s = sessions.get(chatId);
-        if (!access.isAuthorized(s, chatId, query.from && query.from.username)) {
-            await bot.answerCallbackQuery(query.id, { text: '🔒 Требуется авторизация', show_alert: true }).catch(() => {});
+        const username = ctx2.from && ctx2.from.username;
+        if (!access.isAuthorized(s, chatId, username)) {
+            await ctx2.answerCallbackQuery({ text: '🔒 Требуется авторизация', show_alert: true }).catch(() => {});
             return;
         }
-        await bot.answerCallbackQuery(query.id).catch(() => {});
+        await ctx2.answerCallbackQuery().catch(() => {});
 
         const field = data.slice(7);
         if (!s.searchText) {
-            return safeEdit(bot, 'Сначала напишите текст запроса.', {
-                chat_id: chatId, message_id: messageId,
+            return safeEdit(bot, chatId, ctx2.msg ? ctx2.msg.message_id : null, 'Сначала напишите текст запроса.', {
                 reply_markup: { inline_keyboard: [[{ text: '◀️ Меню', callback_data: 'menu:main' }]] },
             });
         }
 
-        if (field === 'author')
-            return renderAuthors(chatId, messageId, s.searchText, 0);
-        if (field === 'series')
-            return renderSeries(chatId, messageId, s.searchText, 0);
-        if (field === 'title')
-            return renderBooks(chatId, messageId, { title: s.searchText }, 0, 'menu:main');
-
-        return;
+        const messageId = ctx2.msg ? ctx2.msg.message_id : null;
+        if (field === 'author') return renderAuthors(chatId, messageId, s.searchText, 0);
+        if (field === 'series') return renderSeries(chatId, messageId, s.searchText, 0);
+        if (field === 'title')  return renderBooks(chatId, messageId, { title: s.searchText }, 0, 'menu:main');
     }));
 }
 

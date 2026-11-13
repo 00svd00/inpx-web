@@ -24,7 +24,6 @@
     "build:macos-arm64": "npm run build:client && node build/prepkg.js macos-arm64 && node build/fetch-napi.js node22-macos-arm64 && npm run build:bundle && node build/pkg-with-conditional.js node22-macos-arm64 dist/macos-arm64/inpx-web dist/bundle/index.js",
     "build:client-dev": "webpack --config build/webpack.dev.config.js",
     "build:plugin": "node build/build-plugin.js",
-    "release:plugins": "node build/build-plugin.js",
     "build:all": "npm run build:linux && npm run build:win && npm run build:macos && npm run build:linux-arm64",
     "release": "npm run build:all && node build/release.js",
     "release:linux": "npm run build:linux && node build/release.js linux",

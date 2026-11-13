@@ -17,18 +17,24 @@ function bookLabel(b) {
 }
 
 function isTelegramBenign(e) {
+    // v2: TelegramApiError; description доступен в e.response.body.description или e.message
     const desc = (e && e.response && e.response.body && e.response.body.description)
         ? String(e.response.body.description)
-        : '';
+        : (e && e.message ? String(e.message) : '');
     return /message is not modified/i.test(desc)
         || /message is too long/i.test(desc)
         || /query is too old/i.test(desc)
         || /BUTTON_DATA_INVALID/i.test(desc);
 }
 
-async function safeEdit(bot, text, opts) {
+async function safeEdit(bot, chatId, messageId, text, opts) {
     try {
-        return await bot.editMessageText(text, opts);
+        return await bot.api.editMessageText({
+            chat_id: chatId,
+            message_id: messageId,
+            text,
+            ...(opts || {}),
+        });
     } catch (e) {
         if (isTelegramBenign(e))
             return null;
