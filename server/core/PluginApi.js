@@ -106,6 +106,13 @@ class PluginApi {
     async getBookLink(uid)        { return this._call(this._webWorker.getBookLink, uid); }
     async getBookInfo(uid)        { return this._call(this._webWorker.getBookInfo, uid); }
 
+    // OPDS-модель «автор → серии + без серии»:
+    //   getAuthorBookList(authorId)  -> {author, books}  — ВСЕ книги автора (включая без серии)
+    //   getAuthorSeriesList(authorId)-> {author, series} — серии автора (с bookCount)
+    // Фильтр «без серии» (!book.series) и пагинация — на стороне плагина.
+    async getAuthorBookList(authorId)   { return this._call(this._webWorker.getAuthorBookList, authorId); }
+    async getAuthorSeriesList(authorId) { return this._call(this._webWorker.getAuthorSeriesList, authorId); }
+
     // ---- жанры ----
     async getGenreTree()          { return this._call(this._webWorker.getGenreTree); }
 

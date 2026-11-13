@@ -51,6 +51,8 @@ function makeWebWorker(overrides = {}) {
         getBookLink: async () => ({ link: '/book/x', downFileName: 'x.fb2' }),
         resolveBookFile: async () => ({ path: '/book/x', filename: 'x.fb2.zip', mime: 'application/zip', gzipped: false }),
         getBookInfo: async () => ({ bookInfo: {} }),
+        getAuthorBookList: async () => ({ author: '', books: [] }),
+        getAuthorSeriesList: async () => ({ author: '', series: [] }),
         getGenreTree: async () => ({ genreTree: [], langList: [], extList: [] }),
         getBookReviewsCount: async () => ({ declaredCount: 0, sum: 0 }),
         getBookReviews: async () => ({ reviews: [] }),
@@ -348,6 +350,33 @@ describe('PluginApi: pluginsDir', () => {
     test('пуст → path.join(dataDir, "plugins")', () => {
         const api = makeApi({ config: makeConfig({ pluginsDir: '', dataDir: '/data' }) });
         assert.strictEqual(api.pluginsDir, '/data/plugins');
+    });
+});
+
+describe('PluginApi: getAuthorBookList / getAuthorSeriesList', () => {
+    test('getAuthorBookList пробрасывает authorId и возвращает {author, books}', async () => {
+        let arg = null;
+        const api = makeApi({
+            webWorker: makeWebWorker({
+                getAuthorBookList: async (id) => { arg = id; return { author: 'A', books: [{ _uid: 'u1' }] }; },
+            }),
+        });
+        const r = await api.getAuthorBookList(42);
+        assert.strictEqual(arg, 42);
+        assert.strictEqual(r.author, 'A');
+        assert.strictEqual(r.books.length, 1);
+    });
+
+    test('getAuthorSeriesList пробрасывает authorId и возвращает {author, series}', async () => {
+        let arg = null;
+        const api = makeApi({
+            webWorker: makeWebWorker({
+                getAuthorSeriesList: async (id) => { arg = id; return { author: 'A', series: [{ id: 1, series: 'S', bookCount: 3 }] }; },
+            }),
+        });
+        const r = await api.getAuthorSeriesList(42);
+        assert.strictEqual(arg, 42);
+        assert.strictEqual(r.series.length, 1);
     });
 });
 
