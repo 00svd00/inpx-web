@@ -69,7 +69,7 @@ function register(bot, ctx) {
         try {
             res = await api.getAuthorSeriesList(id);
         } catch (e) {
-            api.log(LM_ERR, `[telegram-bot] getAuthorSeriesList failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] getAuthorSeriesList failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Ошибка: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
@@ -155,7 +155,7 @@ function register(bot, ctx) {
         try {
             list = await api.getAuthorBookList(authorId);
         } catch (e) {
-            api.log(LM_ERR, `[telegram-bot] getAuthorBookList failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] getAuthorBookList failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Ошибка: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
@@ -269,7 +269,7 @@ function register(bot, ctx) {
             try {
                 list = await api.getAuthorBookList(authorId);
             } catch (e) {
-                api.log(LM_ERR, `[telegram-bot] getAuthorBookList failed: ${e.message}`);
+                api.log(LM_ERR, `[telegram-bot][${chatId}] getAuthorBookList failed: ${e.message}`);
                 return;
             }
             const all = (list.books || []).filter(b => !b.series);

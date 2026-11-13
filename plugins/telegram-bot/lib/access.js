@@ -17,7 +17,7 @@ function makeAccess(config) {
         try {
             await bot.sendMessage(chatId, '🔒 Требуется авторизация. Отправьте /start <пароль>.');
         } catch (e) {
-            api.log(LM_WARN, `[telegram-bot] sendMessage failed: ${e.message}`);
+            api.log(LM_WARN, `[telegram-bot][${chatId}] sendMessage failed: ${e.message}`);
         }
         return false;
     }

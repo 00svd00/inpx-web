@@ -38,7 +38,7 @@ function register(bot, ctx) {
                     chat_id: chatId, message_id: messageId,
                     reply_markup: { inline_keyboard: [[{ text: '◀️ Назад', callback_data: 'back:search' }]] },
                 });
-            api.log(LM_WARN, `[telegram-bot] getBookInfo failed: ${e.message}`);
+            api.log(LM_WARN, `[telegram-bot][${chatId}] getBookInfo failed: ${e.message}`);
         }
 
         const text = formatBookCard(book, info);
@@ -66,7 +66,7 @@ function register(bot, ctx) {
         } catch (e) {
             if (e.message.startsWith('404'))
                 return bot.sendMessage(chatId, '⚠️ Файл не найден (возможно, удалён из библиотеки).');
-            api.log(LM_ERR, `[telegram-bot] getBookFile failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] getBookFile failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Не удалось получить файл: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
@@ -88,7 +88,7 @@ function register(bot, ctx) {
                 contentType: file.mime || 'application/octet-stream',
             });
         } catch (e) {
-            api.log(LM_ERR, `[telegram-bot] sendDocument failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] sendDocument failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Не удалось отправить файл: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
     }));

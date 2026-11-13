@@ -39,6 +39,7 @@ class TelegramBotPlugin {
         }
 
         this.bot = new TelegramBot(config.token, { polling: true });
+        this.sessions.startCleanup();
 
         const ctx = {
             api,
@@ -59,6 +60,7 @@ class TelegramBotPlugin {
     }
 
     async stop() {
+        this.sessions.stopCleanup();
         if (this.bot) {
             try { await this.bot.stopPolling(); } catch (e) {}
             this.bot = null;

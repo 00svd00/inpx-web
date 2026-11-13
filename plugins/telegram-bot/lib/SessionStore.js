@@ -1,6 +1,32 @@
+// TTL сессии: если chatId неактивен дольше — удаляем (память).
+const SESSION_TTL_MS = 15 * 60 * 1000;           // 15 мин
+const CLEAN_INTERVAL_MS = 5 * 60 * 1000;         // 5 мин
+
 class SessionStore {
     constructor() {
         this.map = new Map();
+        this.cleanTimer = null;
+    }
+
+    startCleanup() {
+        if (this.cleanTimer) return;
+        this.cleanTimer = setInterval(() => this.cleanup(), CLEAN_INTERVAL_MS);
+        if (this.cleanTimer.unref) this.cleanTimer.unref(); // не держим event loop
+    }
+
+    stopCleanup() {
+        if (this.cleanTimer) {
+            clearInterval(this.cleanTimer);
+            this.cleanTimer = null;
+        }
+    }
+
+    cleanup() {
+        const now = Date.now();
+        for (const [chatId, s] of this.map) {
+            if (now - (s.lastActivity || 0) > SESSION_TTL_MS)
+                this.map.delete(chatId);
+        }
     }
 
     get(chatId) {
@@ -23,6 +49,7 @@ class SessionStore {
             };
             this.map.set(chatId, s);
         }
+        s.lastActivity = Date.now();
         return s;
     }
 

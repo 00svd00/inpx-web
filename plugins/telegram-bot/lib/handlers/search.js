@@ -26,7 +26,7 @@ function register(bot, ctx) {
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
                 return bot.sendMessage(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
-            api.log(LM_ERR, `[telegram-bot] search author failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] search author failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
@@ -58,7 +58,7 @@ function register(bot, ctx) {
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
                 return bot.sendMessage(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
-            api.log(LM_ERR, `[telegram-bot] search series failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] search series failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
@@ -92,7 +92,7 @@ function register(bot, ctx) {
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
                 return bot.sendMessage(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
-            api.log(LM_ERR, `[telegram-bot] bookSearch failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] bookSearch failed: ${e.message}`);
             return bot.sendMessage(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
