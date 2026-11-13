@@ -1,0 +1,11 @@
+{
+    "name": "inpx-web-plugin-telegram-bot",
+    "version": "1.6.4",
+    "private": true,
+    "description": "Telegram bot for inpx-web: OPDS-like search and navigation",
+    "main": "index.js",
+    "license": "CC0-1.0",
+    "dependencies": {
+        "node-telegram-bot-api": "^0.66.0"
+    }
+}

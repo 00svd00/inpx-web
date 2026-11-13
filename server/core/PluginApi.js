@@ -72,6 +72,32 @@ class PluginApi {
         }
     }
 
+    // Обёртка для async-обработчиков плагина: ловит любые ошибки, логирует LM_ERR,
+    // не пробрасывает. Плагин ОБЯЗАН оборачивать все свои async-обработчики
+    // (bot.on(...), setInterval, и т.п.) в api.guard — иначе unhandled rejection
+    // может уронить процесс (см. PluginManager: unhandledRejection-фильтр).
+    guard(name, fn) {
+        return async (...args) => {
+            try {
+                return await fn(...args);
+            } catch (e) {
+                this.log(LM_ERR, `[${this.pluginId}] ${name} failed: ${e && e.message ? e.message : e}`);
+                return undefined;
+            }
+        };
+    }
+
+    // Готовый файл книги для скачивания/отправки:
+    //   fb2  -> <hash>.zip (downFileName + '.zip', mime application/zip)
+    //   epub -> <hash>     (downFileName, mime application/epub+zip)
+    // Материализация (включая remote lib) — в getBookLink; resolveBookFile — только файл.
+    // format: 'zip' (default) | 'raw'.  'raw' для fb2 — распакованный .fb2 (без zip).
+    async getBookFile(uid, { format = 'zip' } = {}) {
+        const link = await this._call(this._webWorker.getBookLink, uid);
+        const hash = path.basename(link.link);
+        return this._call(this._webWorker.resolveBookFile, hash, format);
+    }
+
     // ---- поиск ----
     async search(from, query)     { return this._call(this._webWorker.search, from, query); }
     async bookSearch(query)       { return this._call(this._webWorker.bookSearch, query); }

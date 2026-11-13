@@ -1,0 +1,10 @@
+{
+    "enabled": false,
+    "apiVersion": "1.0",
+    "token": "",
+    "accessPassword": "",
+    "allowedUsers": [],
+    "maxResults": 10,
+    "sendFiles": false,
+    "publicUrl": ""
+}

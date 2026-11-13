@@ -49,6 +49,7 @@ function makeWebWorker(overrides = {}) {
         search: async () => ({ found: [], totalFound: 0 }),
         bookSearch: async () => ({ found: [], totalFound: 0 }),
         getBookLink: async () => ({ link: '/book/x', downFileName: 'x.fb2' }),
+        resolveBookFile: async () => ({ path: '/book/x', filename: 'x.fb2.zip', mime: 'application/zip', gzipped: false }),
         getBookInfo: async () => ({ bookInfo: {} }),
         getGenreTree: async () => ({ genreTree: [], langList: [], extList: [] }),
         getBookReviewsCount: async () => ({ declaredCount: 0, sum: 0 }),
@@ -285,6 +286,56 @@ describe('PluginApi: getAuthorPhotoMime', () => {
         });
         assert.strictEqual(api.getAuthorPhotoMime('.png'), 'image/png');
         assert.strictEqual(arg, '.png');
+    });
+});
+
+describe('PluginApi: getBookFile', () => {
+    test('default format=zip: getBookLink → resolveBookFile(hash, "zip")', async () => {
+        let resolveArgs = null;
+        const api = makeApi({
+            webWorker: makeWebWorker({
+                getBookLink: async () => ({ link: '/book/abc123', downFileName: 'x.fb2' }),
+                resolveBookFile: async (hash, format) => {
+                    resolveArgs = [hash, format];
+                    return { path: '/data/book/abc123.zip', filename: 'x.fb2.zip', mime: 'application/zip', gzipped: false };
+                },
+            }),
+        });
+        const r = await api.getBookFile('uid-1');
+        assert.deepStrictEqual(resolveArgs, ['abc123', 'zip']);
+        assert.strictEqual(r.filename, 'x.fb2.zip');
+    });
+
+    test('format=raw: resolveBookFile(hash, "raw")', async () => {
+        let resolveArgs = null;
+        const api = makeApi({
+            webWorker: makeWebWorker({
+                getBookLink: async () => ({ link: '/book/abc123', downFileName: 'x.fb2' }),
+                resolveBookFile: async (hash, format) => {
+                    resolveArgs = [hash, format];
+                    return { path: '/data/book/abc123.raw', filename: 'x.fb2', mime: 'application/fb2+xml', gzipped: false };
+                },
+            }),
+        });
+        await api.getBookFile('uid-1', { format: 'raw' });
+        assert.deepStrictEqual(resolveArgs, ['abc123', 'raw']);
+    });
+
+    test('server_busy → waitReady → повтор', async () => {
+        let calls = 0;
+        const api = makeApi({
+            webWorker: makeWebWorker({
+                getBookLink: async () => {
+                    calls++;
+                    if (calls === 1) throw new Error('server_busy');
+                    return { link: '/book/abc123', downFileName: 'x.fb2' };
+                },
+                resolveBookFile: async () => ({ path: '/x', filename: 'x', mime: 'application/zip' }),
+            }),
+        });
+        const r = await api.getBookFile('uid-1');
+        assert.strictEqual(calls, 2);
+        assert.ok(r.path);
     });
 });
 

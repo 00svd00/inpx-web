@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
+const yazl = require('yazl');
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -210,6 +211,21 @@ function cutString(data, len = 500) {
     }
 }
 
+function generateZip(zipFile, dataFile, dataFileInZip) {
+    return new Promise((resolve, reject) => {
+        const zip = new yazl.ZipFile();
+        zip.addFile(dataFile, dataFileInZip);
+        zip.outputStream
+            .pipe(fs.createWriteStream(zipFile)).on('error', reject)
+            .on('finish', (err) => {
+                if (err) reject(err);
+                else resolve();
+            }
+        );
+        zip.end();
+    });
+}
+
 module.exports = {
     sleep,
     processLoop,
@@ -224,6 +240,7 @@ module.exports = {
     randomHexString,
     gzipFile,
     gunzipFile,
+    generateZip,
     gzipBuffer,
     gunzipBuffer,
     toUnixPath,

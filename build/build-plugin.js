@@ -5,41 +5,38 @@ const yazl = require('yazl');
 
 // npm run build:plugin -- <id>      — один плагин
 // npm run release:plugins           — все plugins/*/
+//
+// ZIP: верхний уровень — каталог <id>/ (например, example/index.js),
+// поэтому установка: unzip dist/plugins/<id>.zip -d <dataDir>/plugins/
+//
+// node_modules плагина ПОПАДАЕТ в ZIP (самодостаточный, без npm install у пользователя).
+// Исключаются: config.json (секреты), package-lock.json, .git, .gitignore, node_modules/.cache.
 
 const repoDir = path.resolve(__dirname, '..');
 const pluginsDir = path.join(repoDir, 'plugins');
 const distDir = path.join(repoDir, 'dist', 'plugins');
 
-// в ZIP не попадает: секреты, служебное, кеш
-const EXCLUDE_TOP = new Set(['config.json', 'package-lock.json', '.git', '.gitignore', 'node_modules']);
-const EXCLUDE_NODE_MODULES = [/^\.cache(\/|$)/]; 
+const EXCLUDE_TOP = new Set(['config.json', 'package-lock.json', '.git', '.gitignore']);
+const EXCLUDE_NODE_MODULES = [/^\.cache(\/|$)/];
 
-async function collectFiles(dir, base = '', out = []) {
+async function collectFiles(dir, base = '', out = [], inNodeModules = false) {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const e of entries) {
         const rel = base ? `${base}/${e.name}` : e.name;
         const abs = path.join(dir, e.name);
 
-        // верхний уровень: config.json не пакуем
+        // верхний уровень: секреты/служебное не пакуем
         if (!base && EXCLUDE_TOP.has(e.name))
             continue;
 
+        // внутри node_modules: исключаем .cache
+        if (inNodeModules && EXCLUDE_NODE_MODULES.some(re => re.test(e.name)))
+            continue;
+
+        const nowInNodeModules = inNodeModules || (!base && e.name === 'node_modules');
+
         if (e.isDirectory()) {
-            if (e.name === 'node_modules' && base) {
-                // внутри node_modules: исключаем .cache
-                const nmEntries = await fs.readdir(abs, { withFileTypes: true });
-                for (const ne of nmEntries) {
-                    if (EXCLUDE_NODE_MODULES.some(re => re.test(ne.name)))
-                        continue;
-                    const nAbs = path.join(abs, ne.name);
-                    if (ne.isDirectory())
-                        await collectFiles(nAbs, `${rel}/${ne.name}`, out);
-                    else
-                        out.push({ abs: nAbs, rel: `${rel}/${ne.name}` });
-                }
-                continue;
-            }
-            await collectFiles(abs, rel, out);
+            await collectFiles(abs, rel, out, nowInNodeModules);
         } else {
             out.push({ abs, rel });
         }
@@ -64,8 +61,8 @@ async function buildPlugin(id) {
         if (deps.length) {
             const nm = path.join(pluginDir, 'node_modules');
             if (!await fs.pathExists(nm)) {
-                console.log(`[${id}] npm install --production`);
-                execSync('npm install --production --no-audit --no-fund', {
+                console.log(`[${id}] npm install --omit=dev`);
+                execSync('npm install --omit=dev --no-audit --no-fund', {
                     cwd: pluginDir,
                     stdio: 'inherit',
                 });
@@ -97,9 +94,9 @@ async function buildPlugin(id) {
     });
 
     const stat = await fs.stat(zipFile);
-    console.log(`✅ ${id}.zip (${files.length} files, ${(stat.size / 1024).toFixed(1)} KB) -> ${path.relative(repoDir, zipFile)}`);
+    console.log(`✅ ${id}.zip (${files.length} files, ${(stat.size / 1024 / 1024).toFixed(2)} MB) -> ${path.relative(repoDir, zipFile)}`);
     console.log(`   install: unzip ${path.relative(repoDir, zipFile)} -d <dataDir>/plugins/`);
-    console.log(`   then: cp config.example.json config.json && edit config.json (enabled: true)`);
+    console.log(`   then: cp <dataDir>/plugins/${id}/config.example.json <dataDir>/plugins/${id}/config.json && edit config.json (enabled: true)`);
 }
 
 async function main() {
@@ -110,7 +107,6 @@ async function main() {
         return;
     }
 
-    // все плагины
     if (!await fs.pathExists(pluginsDir))
         throw new Error(`plugins dir not found: ${pluginsDir}`);
 

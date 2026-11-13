@@ -28,13 +28,13 @@ class PluginManager {
         // DI: в проде — singleton AppLogger; в тестах — fake.
         this._logger = logger || new (require('./AppLogger'))();
         this.plugins = new Map(); // id -> {api, config, module}
+        this._onUnhandled = null;
     }
 
     get pluginsDir() {
         return this.config.pluginsDir || path.join(this.config.dataDir, 'plugins');
     }
 
-    // короткий хелпер: this._log('msg') / this._log(LM_WARN, 'msg')
     _log(levelOrMsg, msg) {
         try {
             if (msg === undefined)
@@ -46,11 +46,43 @@ class PluginManager {
         }
     }
 
+    // Изоляция падений плагинов: unhandledRejection, чей стек указывает на pluginsDir,
+    // логируется и поглощается (плагин не роняет ядро). "Чужие" rejection — тоже
+    // логируются, но не валят процесс (поведение ядра: явные exit — через asyncExit).
+    _installUnhandledGuard() {
+        if (this._onUnhandled)
+            return;
+
+        const pluginsDirAbs = path.resolve(this.pluginsDir);
+
+        this._onUnhandled = (reason) => {
+            const msg = reason && reason.message ? reason.message : String(reason);
+            const stack = reason && reason.stack ? String(reason.stack) : '';
+            if (stack.includes(pluginsDirAbs)) {
+                this._log(LM_ERR, `Plugins: unhandledRejection (swallowed): ${msg}`);
+                return;
+            }
+            // не наш — логируем, но не валим (ядро использует asyncExit для явных exit)
+            this._log(LM_ERR, `unhandledRejection (outside plugins): ${msg}`);
+        };
+
+        process.on('unhandledRejection', this._onUnhandled);
+    }
+
+    _removeUnhandledGuard() {
+        if (this._onUnhandled) {
+            process.off('unhandledRejection', this._onUnhandled);
+            this._onUnhandled = null;
+        }
+    }
+
     async start() {
         if (!this.config.pluginsEnabled) {
             this._log('Plugins: disabled');
             return;
         }
+
+        this._installUnhandledGuard();
 
         const dir = this.pluginsDir;
         await fs.ensureDir(dir);
@@ -119,7 +151,6 @@ class PluginManager {
             return;
         }
 
-        // api получает тот же logger, что и PluginManager (единый поток логов)
         const api = new PluginApi({
             config: this.config,
             webWorker: this.webWorker,
@@ -146,6 +177,7 @@ class PluginManager {
             }
         }
         this.plugins.clear();
+        this._removeUnhandledGuard();
         this._log('Plugins: stopped');
     }
 }
