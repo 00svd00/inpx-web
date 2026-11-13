@@ -113,6 +113,40 @@ function makeRenders(api, tg) {
         const text = formatBooksList(res.found, res.totalFound);
         const keyboard = booksKeyboard(res.found, page, totalPages, showPrev, showNext, backCallback);
         return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        }
+
+        async function renderSeriesBooks(chatId, messageId, seriesName, authorName, offset, limit, lastBooks, backCallback = 'menu:main') {
+        let list;
+        try {
+            list = await api.getSeriesBookList(seriesName);
+        } catch (e) {
+            api.log(LM_ERR, `[telegram-bot][${chatId}] getSeriesBookList failed: ${e.message}`);
+            return tg.send(chatId, `⚠️ Ошибка: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+        }
+
+        let all = list.books || [];
+        if (authorName) {
+            const target = authorName.toLowerCase().trim();
+            all = all.filter(b => {
+                const authors = (b.author || '').toLowerCase().split(',').map(a => a.trim());
+                return authors.some(a => a === target);
+            });
+        }
+
+        const totalFound = all.length;
+        const found = all.slice(offset, offset + limit);
+
+        lastBooks.length = 0;
+        for (const b of found) lastBooks.push(b);
+
+        const totalPages = Math.ceil(totalFound / limit) || 1;
+        const page = Math.floor(offset / limit);
+        const showPrev = page > 0;
+        const showNext = offset + limit < totalFound;
+
+        const text = formatBooksList(found, totalFound);
+        const keyboard = booksKeyboard(found, page, totalPages, showPrev, showNext, backCallback);
+        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
     }
 
     async function renderNoSeries(chatId, messageId, authorId, offset, limit, s) {
@@ -194,7 +228,7 @@ function makeRenders(api, tg) {
 
     return {
         renderMenu, renderSearchFields, renderAuthors, renderSeries, renderBooks,
-        renderNoSeries, renderBook, renderBookFile,
+        renderNoSeries, renderBook, renderBookFile, renderSeriesBooks,
     };
 }
 

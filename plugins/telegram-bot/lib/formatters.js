@@ -35,8 +35,14 @@ function formatBooksList(found, totalFound) {
 }
 
 function formatBookCard(book, info, genreMap) {
-    const bi = (info && info.bookInfo) || {};
-    const bookInfo = bi.bookInfo || {};
+// api.getBookInfo → {bookInfo: {book, cover, bookInfo: {titleInfo}, ...}}
+    // .i.json → {book, cover, bookInfo: {titleInfo}, ...}
+    // берём deepest.bookInfo (если есть), иначе info.bookInfo
+    const outer = (info && info.bookInfo) || {};
+    const inner = outer.bookInfo || outer;
+    const ti = inner.titleInfo || {};
+    const annotation = ti.annotationHtml || ti.annotationXml || '';
+
     const lines = [];
     lines.push(`📖 <b>${escapeHtml(book.title || '(без названия)')}</b>`);
     if (book.author) lines.push(`👤 ${escapeHtml(book.author)}`);
@@ -48,18 +54,36 @@ function formatBookCard(book, info, genreMap) {
         }).filter(Boolean);
         if (names.length) lines.push(`🏷️ ${escapeHtml(names.join(', '))}`);
     }
-    // librate — оценка из INPX (0..5; 0 = нет оценки)
     const librate = parseInt(book.librate, 10) || 0;
-    if (librate > 0)
-        lines.push(`⭐ Оценка: ${librate}/5`);
+    if (librate > 0) lines.push(`⭐ Оценка: ${librate}/5`);
     if (book.date) lines.push(`📅 ${escapeHtml(book.date)}`);
     if (book.ext) lines.push(`📄 ${escapeHtml(book.ext)}`);
-    if (bookInfo.annotation) lines.push('', escapeHtml(truncate(bookInfo.annotation, 800)));
+    if (annotation) {
+        const plain = annotation.replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').trim();
+        if (plain) lines.push('', escapeHtml(truncate(plain, 800)));
+    }
     return lines.join('\n');
+}
+
+function formatHelp() {
+    return [
+        '❓ <b>Памятка по поиску</b>',
+        '',
+        'Просто напишите текст — бот предложит, что искать (автор / серия / книга).',
+        '',
+        '<b>Префиксы</b> (в любом поле):',
+        '<code>=</code> — точное совпадение. <code>=Пушкин Александр Сергеевич</code>',
+        '<code>%</code> — все слова одновременно. <code>%Александр Пушкин</code>',
+        '<code>*</code> — подстрока с пробелами. <code>*Александр Сергеевич</code>',
+        '<code>#</code> — не с буквы (рус./лат.) + подстрока. <code>#поворот</code>',
+        '<code>~</code> — регулярное выражение. <code>~^\\s</code> (начинается с пробела)',
+        '<code>?</code> — пустое или начинается с «?». <code>?</code> в «Серия» — книги без серии',
+    ].join('\n');
 }
 
 
 module.exports = {
     escapeHtml, truncate, bookLabel,
     formatAuthorsList, formatSeriesList, formatBooksList, formatBookCard,
+    formatHelp,
 };

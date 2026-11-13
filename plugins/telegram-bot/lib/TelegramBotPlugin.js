@@ -68,6 +68,10 @@ class TelegramBotPlugin {
             api.log(LM_ERR, `[telegram-bot][${chatId}] handler error: ${err && err.message ? err.message : err}`);
         });
 
+        this.bot.on('polling_error', (err) => {
+            api.log(LM_WARN, `[telegram-bot] polling_error: ${err && err.message ? err.message : err}`);
+        });
+
         registerRouter(this.bot, ctx);
 
         this.sessions.startCleanup();

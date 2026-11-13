@@ -3,6 +3,7 @@
 // answerCallbackQuery — ОДИН раз здесь (до логики), isAuthorized — ОДИН раз здесь.
 function registerRouter(bot, ctx) {
     const { api, tg, sessions, access, handlers, renders } = ctx;
+    const { formatHelp } = require('./formatters');
 
     const ROUTES = [
         { prefix: 'menu:',     handler: 'onMenu' },
@@ -36,6 +37,12 @@ function registerRouter(bot, ctx) {
     bot.on('message', api.guard('onMessage', async (tgCtx) => {
         const msg = tgCtx.message;
         if (!msg || !msg.text) return;
+        // игнор накопившихся сообщений (пока бот был offline): старше 1 минуты
+        const msgAge = Date.now() / 1000 - (msg.date || 0);
+        if (msgAge > 60) {
+            // тихо, без ответа (пользователь напишет ещё раз)
+            return;
+        }
         const text = msg.text.trim();
         const chatId = msg.chat.id;
         const s = sessions.get(chatId);
@@ -54,21 +61,24 @@ function registerRouter(bot, ctx) {
                 s.authorized = true;
             }
             s.searchText = '';
+            s.authorId = 0;
+            s.authorName = '';
             return renders.renderMenu(chatId, null);
         }
 
         if (text === '/help') {
             if (!access.isAuthorized(s, chatId, tgCtx.from && tgCtx.from.username))
                 return tg.send(chatId, '🔒 Требуется авторизация. Отправьте /start <пароль>.');
-            return tg.send(chatId,
-                '❓ <b>Помощь</b>\n\nНапишите текст — бот предложит, что искать (автор / серия / книга).\n\nКоманды:\n/start — меню\n/author — поиск по автору\n/series — поиск по серии\n/title — поиск по названию\n/help — эта справка',
-                { parse_mode: 'HTML' });
+            const { formatHelp } = require('./formatters');
+            return tg.send(chatId, formatHelp(), { parse_mode: 'HTML' });
         }
 
         if (text === '/author' || text === '/series' || text === '/title') {
             if (!access.isAuthorized(s, chatId, tgCtx.from && tgCtx.from.username))
                 return tg.send(chatId, '🔒 Требуется авторизация. Отправьте /start <пароль>.');
-            s.mode = text.slice(1);  // 'author' | 'series' | 'title'
+            s.mode = text.slice(1);
+            s.authorId = 0;
+            s.authorName = '';
             const hint = s.mode === 'author' ? 'имя автора' : s.mode === 'series' ? 'название серии' : 'название книги';
             return tg.send(chatId, `Напишите ${hint} — бот найдёт.`);
         }
@@ -80,16 +90,22 @@ function registerRouter(bot, ctx) {
         // s.mode: 'author' | 'series' | 'title' — шорткат; иначе — «Что искать?»
         if (s.mode === 'author') {
             s.mode = 'menu';
+            s.authorId = 0;
+            s.authorName = '';
             s.pageContext = { kind: 'authors', query: { term: text } };
             return renders.renderAuthors(chatId, null, text, 0, ctx.limit, s.authorsById);
         }
         if (s.mode === 'series') {
             s.mode = 'menu';
+            s.authorId = 0;
+            s.authorName = '';
             s.pageContext = { kind: 'series', query: { term: text } };
             return renders.renderSeries(chatId, null, text, 0, ctx.limit, s.seriesById);
         }
         if (s.mode === 'title') {
             s.mode = 'menu';
+            s.authorId = 0;
+            s.authorName = '';
             s.pageContext = { kind: 'books', query: { title: text }, backCallback: 'menu:main' };
             return renders.renderBooks(chatId, null, { title: text }, 0, ctx.limit, s.lastBooks, 'menu:main');
         }

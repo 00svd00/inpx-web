@@ -1,7 +1,7 @@
 // Тонкие handlers: (tgCtx, data, ctx) -> Promise.
 // Без answerCallbackQuery (router), без isAuthorized (router), без safeEdit (renders/tg).
 // Только логика сессии: обновить s.pageContext / s.lastBooks / s.authorId / ... и вызвать render*.
-const { escapeHtml } = require('./formatters');
+const { escapeHtml, formatHelp } = require('./formatters');
 const { seriesKeyboard } = require('./keyboards');
 
 function makeHandlers(ctx) {
@@ -23,21 +23,27 @@ function makeHandlers(ctx) {
         if (what === 'main') {
             s.searchText = '';
             s.mode = 'menu';
+            s.authorId = 0;
+            s.authorName = '';
             return renders.renderMenu(chatId, messageId);
         }
         if (what === 'search') {
             s.searchText = '';
             s.mode = 'search';
+            s.authorId = 0;
+            s.authorName = '';
             return renders.renderSearchFields(chatId, messageId, '');
         }
         if (what === 'help') {
-            return tg.edit(chatId, messageId,
-                'Напишите текст — бот предложит, что искать.\n\n/start — меню\n/help — справка',
-                { reply_markup: { inline_keyboard: [[{ text: '◀️ Меню', callback_data: 'menu:main' }]] } });
+            return tg.edit(chatId, messageId, formatHelp(), { 
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [[{ text: '◀️ Меню', callback_data: 'menu:main' }]] } });
         }
         if (what === 'author' || what === 'series') {
             const hint = what === 'author' ? 'имя автора' : 'название серии';
-            s.mode = what;   // 'author' | 'series' — следующий текст пойдёт в render*
+            s.mode = what;
+            s.authorId = 0;
+            s.authorName = '';
             return tg.edit(chatId, messageId, `Напишите ${hint} текстом — бот найдёт.`,
                 { reply_markup: { inline_keyboard: [[{ text: '◀️ Меню', callback_data: 'menu:main' }]] } });
         }
@@ -57,14 +63,20 @@ function makeHandlers(ctx) {
 
         if (field === 'author') {
             s.pageContext = { kind: 'authors', query: { term: s.searchText } };
+            s.authorId = 0;
+            s.authorName = '';
             return renders.renderAuthors(chatId, messageId, s.searchText, 0, limit, s.authorsById);
         }
         if (field === 'series') {
             s.pageContext = { kind: 'series', query: { term: s.searchText } };
+            s.authorId = 0;
+            s.authorName = '';
             return renders.renderSeries(chatId, messageId, s.searchText, 0, limit, s.seriesById);
         }
         if (field === 'title') {
             s.pageContext = { kind: 'books', query: { title: s.searchText }, backCallback: 'menu:main' };
+            s.authorId = 0;
+            s.authorName = '';
             return renders.renderBooks(chatId, messageId, { title: s.searchText }, 0, limit, s.lastBooks, 'menu:main');
         }
     }
@@ -114,14 +126,16 @@ function makeHandlers(ctx) {
         }
 
         s.seriesName = series.series || series.name || '';
-        const backCallback = s.authorId ? `author:${s.authorId}` : 'menu:main';
-        // серия с одинаковым названием может быть у разных авторов — фильтруем по автору,
-        // если пришли из author:<id> (authorId задан)
+        if (s.authorId && s.authorName) {
+            // из автора: все книги серии (по seriesId) + фильтр author в боте (соавторы)
+            const backCallback = `author:${s.authorId}`;
+            s.pageContext = { kind: 'seriesBooks', query: { seriesName: s.seriesName, authorName: s.authorName }, backCallback };
+            return renders.renderSeriesBooks(chatId, messageId, s.seriesName, s.authorName, 0, limit, s.lastBooks, backCallback);
+        }
+        // из поиска серий: все книги серии (bookSearch)
         const query = { series: s.seriesName };
-        if (s.authorId && s.authorName)
-            query.author = s.authorName;
-        s.pageContext = { kind: 'books', query, backCallback };
-        return renders.renderBooks(chatId, messageId, query, 0, limit, s.lastBooks, backCallback);
+        s.pageContext = { kind: 'books', query, backCallback: 'menu:main' };
+        return renders.renderBooks(chatId, messageId, query, 0, limit, s.lastBooks, 'menu:main');
     }
 
     // noseries:<authorId>
@@ -171,6 +185,8 @@ function makeHandlers(ctx) {
                 pc.query.authorName, pc.query.authorId, s.authorSeriesNoSeriesCount);
         if (pc.kind === 'books')
             return renders.renderBooks(chatId, messageId, pc.query, offset, limit, s.lastBooks, pc.backCallback || 'menu:main');
+        if (pc.kind === 'seriesBooks')
+            return renders.renderSeriesBooks(chatId, messageId, pc.query.seriesName, pc.query.authorName, offset, limit, s.lastBooks, pc.backCallback || 'menu:main');
         if (pc.kind === 'noseries')
             return renders.renderNoSeries(chatId, messageId, pc.query.authorId, offset, limit, s);
     }
@@ -185,10 +201,12 @@ function makeHandlers(ctx) {
         if (pc.kind === 'authors')
             return renders.renderAuthors(chatId, messageId, pc.query.term, 0, limit, s.authorsById);
         if (pc.kind === 'series')
-            return renders.renderSeries(chatId, messageId, pc.query.term || '', offset, limit, s.seriesById,
+            return renders.renderSeries(chatId, messageId, pc.query.term || '', 0, limit, s.seriesById,
                 pc.query.authorName, pc.query.authorId, s.authorSeriesNoSeriesCount);
         if (pc.kind === 'books')
             return renders.renderBooks(chatId, messageId, pc.query, 0, limit, s.lastBooks, pc.backCallback || 'menu:main');
+        if (pc.kind === 'seriesBooks')
+            return renders.renderSeriesBooks(chatId, messageId, pc.query.seriesName, pc.query.authorName, 0, limit, s.lastBooks, pc.backCallback || 'menu:main');
         if (pc.kind === 'noseries')
             return renders.renderNoSeries(chatId, messageId, pc.query.authorId, 0, limit, s);
         return renders.renderMenu(chatId, messageId);

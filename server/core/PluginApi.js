@@ -112,6 +112,7 @@ class PluginApi {
     // Фильтр «без серии» (!book.series) и пагинация — на стороне плагина.
     async getAuthorBookList(authorId)   { return this._call(this._webWorker.getAuthorBookList, authorId); }
     async getAuthorSeriesList(authorId) { return this._call(this._webWorker.getAuthorSeriesList, authorId); }
+    async getSeriesBookList(series)     { return this._call(this._webWorker.getSeriesBookList, series); }
 
     // ---- жанры ----
     async getGenreTree()          { return this._call(this._webWorker.getGenreTree); }
