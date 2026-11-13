@@ -1,6 +1,5 @@
-// TTL сессии: если chatId неактивен дольше — удаляем (память).
-const SESSION_TTL_MS = 15 * 60 * 1000;           // 15 мин
-const CLEAN_INTERVAL_MS = 5 * 60 * 1000;         // 5 мин
+const SESSION_TTL_MS = 15 * 60 * 1000;     // 15 мин
+const CLEAN_INTERVAL_MS = 5 * 60 * 1000;   // 5 мин
 
 class SessionStore {
     constructor() {
@@ -11,7 +10,7 @@ class SessionStore {
     startCleanup() {
         if (this.cleanTimer) return;
         this.cleanTimer = setInterval(() => this.cleanup(), CLEAN_INTERVAL_MS);
-        if (this.cleanTimer.unref) this.cleanTimer.unref(); // не держим event loop
+        if (this.cleanTimer.unref) this.cleanTimer.unref();
     }
 
     stopCleanup() {
@@ -34,18 +33,16 @@ class SessionStore {
         if (!s) {
             s = {
                 authorized: false,
-                mode: 'menu',           // 'menu'|'search'|'authors'|'series'|'books'|'book'
+                mode: 'menu',            // 'menu'|'search'|'authors'|'series'|'books'|'book'
                 searchText: '',
-                field: 'title',
                 offset: 0,
-                limit: 10,
-                pageContext: null,      // {kind: 'authors'|'series'|'books', query} — для page:<n>
-                authorsById: new Map(), // id -> {id, name, bookCount}
-                seriesById: new Map(),  // id -> {id, name, bookCount}
-                authorId: 0,            // выбранный автор (для серий/без серии)
+                pageContext: null,       // {kind, query, backCallback}
+                authorsById: new Map(),  // id -> author (для author:<id>)
+                seriesById: new Map(),   // id -> series (для series:<id>)
+                authorId: 0,
                 authorName: '',
-                seriesName: '',
-                authorSeriesAll: null,   // кеш всех серий автора (для пагинации authorSeries)
+                authorSeriesNoSeriesCount: 0,  // книг без серии у выбранного автора
+                lastBooks: [],           // книги текущего списка (для book:<uid>)
             };
             this.map.set(chatId, s);
         }

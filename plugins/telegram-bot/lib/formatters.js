@@ -16,32 +16,6 @@ function bookLabel(b) {
     return truncate(`${author ? author + ' — ' : ''}${title}`, 60);
 }
 
-function isTelegramBenign(e) {
-    // v2: TelegramApiError; description доступен в e.response.body.description или e.message
-    const desc = (e && e.response && e.response.body && e.response.body.description)
-        ? String(e.response.body.description)
-        : (e && e.message ? String(e.message) : '');
-    return /message is not modified/i.test(desc)
-        || /message is too long/i.test(desc)
-        || /query is too old/i.test(desc)
-        || /BUTTON_DATA_INVALID/i.test(desc);
-}
-
-async function safeEdit(bot, chatId, messageId, text, opts) {
-    try {
-        return await bot.api.editMessageText({
-            chat_id: chatId,
-            message_id: messageId,
-            text,
-            ...(opts || {}),
-        });
-    } catch (e) {
-        if (isTelegramBenign(e))
-            return null;
-        throw e;
-    }
-}
-
 function formatAuthorsList(found, totalFound) {
     const lines = [`👤 Найдено авторов: <b>${totalFound}</b>`, ''];
     lines.push(found.length ? 'Выберите автора:' : 'Ничего не найдено.');
@@ -60,22 +34,32 @@ function formatBooksList(found, totalFound) {
     return lines.join('\n');
 }
 
-function formatBookCard(book, info) {
+function formatBookCard(book, info, genreMap) {
     const bi = (info && info.bookInfo) || {};
     const bookInfo = bi.bookInfo || {};
     const lines = [];
     lines.push(`📖 <b>${escapeHtml(book.title || '(без названия)')}</b>`);
     if (book.author) lines.push(`👤 ${escapeHtml(book.author)}`);
     if (book.series) lines.push(`📚 ${escapeHtml(book.series)}${book.serno ? ` #${book.serno}` : ''}`);
-    if (book.genre) lines.push(`🏷️ ${escapeHtml(book.genre)}`);
+    if (book.genre) {
+        const names = String(book.genre).split(',').map(c => {
+            const code = c.trim();
+            return (genreMap && genreMap.get(code)) || code;
+        }).filter(Boolean);
+        if (names.length) lines.push(`🏷️ ${escapeHtml(names.join(', '))}`);
+    }
+    // librate — оценка из INPX (0..5; 0 = нет оценки)
+    const librate = parseInt(book.librate, 10) || 0;
+    if (librate > 0)
+        lines.push(`⭐ Оценка: ${librate}/5`);
     if (book.date) lines.push(`📅 ${escapeHtml(book.date)}`);
     if (book.ext) lines.push(`📄 ${escapeHtml(book.ext)}`);
     if (bookInfo.annotation) lines.push('', escapeHtml(truncate(bookInfo.annotation, 800)));
     return lines.join('\n');
 }
 
+
 module.exports = {
     escapeHtml, truncate, bookLabel,
-    isTelegramBenign, safeEdit,
     formatAuthorsList, formatSeriesList, formatBooksList, formatBookCard,
 };

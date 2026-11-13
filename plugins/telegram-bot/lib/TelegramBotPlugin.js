@@ -2,7 +2,10 @@ const { Bot } = require('node-telegram-bot-api');
 
 const { SessionStore } = require('./SessionStore');
 const { makeAccess } = require('./access');
-const { registerAll } = require('./handlers');
+const { makeTg } = require('./tg');
+const { makeRenders } = require('./renders');
+const { makeHandlers } = require('./handlers');
+const { registerRouter } = require('./router');
 
 class TelegramBotPlugin {
     constructor(api, config) {
@@ -11,7 +14,6 @@ class TelegramBotPlugin {
         this.bot = null;
         this.sessions = new SessionStore();
         this.access = makeAccess(config);
-        // Telegram: inline_keyboard <= 100 кнопок; запас на «Без серии» + nav + «Меню»
         this.limit = Math.min(parseInt(config.maxResults, 10) || 10, 90);
     }
 
@@ -41,22 +43,32 @@ class TelegramBotPlugin {
 
         this.bot = new Bot(config.token);
 
-        // централизованная обработка ошибок (замена polling_error)
-        this.bot.catch((err, ctx) => {
-            const chatId = ctx && ctx.chat ? ctx.chat.id : '-';
+        try {
+            await this.bot.api.setMyCommands({
+                commands: [
+                    { command: 'start', description: 'Меню' },
+                    { command: 'author', description: 'Поиск по автору' },
+                    { command: 'series', description: 'Поиск по серии' },
+                    { command: 'title', description: 'Поиск по названию книги' },
+                    { command: 'help', description: 'Справка' },
+                ],
+            });
+        } catch (e) {
+            api.log(LM_WARN, `[telegram-bot] setMyCommands failed: ${e.message}`);
+        }
+
+        const tg = makeTg(this.bot);
+        const renders = makeRenders(api, tg);
+        const ctx = { api, config, bot: this.bot, sessions: this.sessions, access: this.access, tg, renders, limit: this.limit };
+        const handlers = makeHandlers(ctx);
+        ctx.handlers = handlers;
+
+        this.bot.catch((err, botCtx) => {
+            const chatId = botCtx && botCtx.chat ? botCtx.chat.id : '-';
             api.log(LM_ERR, `[telegram-bot][${chatId}] handler error: ${err && err.message ? err.message : err}`);
         });
 
-        const ctx = {
-            api,
-            config,
-            bot: this.bot,
-            sessions: this.sessions,
-            access: this.access,
-            limit: this.limit,
-        };
-
-        registerAll(this.bot, ctx);
+        registerRouter(this.bot, ctx);
 
         this.sessions.startCleanup();
         this.bot.startPolling();

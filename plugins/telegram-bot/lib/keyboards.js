@@ -1,8 +1,9 @@
 function menuKeyboard() {
     return {
         inline_keyboard: [
-            [{ text: '🔍 Поиск', callback_data: 'menu:search' }],
-            [{ text: '👤 Авторы', callback_data: 'menu:author' }, { text: '📚 Серии', callback_data: 'menu:series' }],
+            [{ text: '👤 Авторы', callback_data: 'menu:author' }],
+            [{ text: '📚 Серии', callback_data: 'menu:series' }],
+            [{ text: '📖 Книги', callback_data: 'menu:title' }],
             [{ text: '❓ Помощь', callback_data: 'menu:help' }],
         ],
     };
@@ -19,6 +20,14 @@ function searchFieldKeyboard() {
     };
 }
 
+function navRow(page, totalPages, showPrev, showNext) {
+    const nav = [];
+    if (showPrev) nav.push({ text: '◀️', callback_data: `page:${page - 1}` });
+    nav.push({ text: `${page + 1}/${Math.max(1, totalPages)}`, callback_data: 'noop' });
+    if (showNext) nav.push({ text: '▶️', callback_data: `page:${page + 1}` });
+    return nav;
+}
+
 function authorsKeyboard(found, page, totalPages, showPrev, showNext) {
     const rows = [];
     for (const a of found) {
@@ -30,10 +39,13 @@ function authorsKeyboard(found, page, totalPages, showPrev, showNext) {
     return { inline_keyboard: rows };
 }
 
-function seriesKeyboard(found, authorId, page, totalPages, showPrev, showNext) {
+// authorId = 0 — «Без серии» не показываем (поиск серий по названию)
+function seriesKeyboard(found, authorId, page, totalPages, showPrev, showNext, opts = {}) {
     const rows = [];
-    if (authorId)
-        rows.push([{ text: '📚 Без серии', callback_data: `noseries:${authorId}` }]);
+    if (authorId && opts.noSeriesCount > 0) {
+        const label = `📚 Без серии (${opts.noSeriesCount})`;
+        rows.push([{ text: label, callback_data: `noseries:${authorId}` }]);
+    }
     for (const s of found) {
         if (!s.id || !s.bookCount) continue;
         rows.push([{ text: `📚 ${s.series || s.name} (${s.bookCount})`, callback_data: `series:${s.id}` }]);
@@ -64,15 +76,8 @@ function bookKeyboard(uid) {
     };
 }
 
-function navRow(page, totalPages, showPrev, showNext) {
-    const nav = [];
-    if (showPrev) nav.push({ text: '◀️', callback_data: `page:${page - 1}` });
-    nav.push({ text: `${page + 1}/${Math.max(1, totalPages)}`, callback_data: 'noop' });
-    if (showNext) nav.push({ text: '▶️', callback_data: `page:${page + 1}` });
-    return nav;
-}
-
 module.exports = {
     menuKeyboard, searchFieldKeyboard,
     authorsKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
+    navRow,
 };
