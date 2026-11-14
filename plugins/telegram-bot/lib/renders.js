@@ -1,18 +1,19 @@
-// Рендеры: только api.* + tg.send/edit. Сессию НЕ трогают — это делает handler.
+// Рендеры: только api.* + tg.send/edit + format*. СЕССИЮ НЕ ТРОГАЮТ.
+// Возвращают данные для handler'а ({found, totalFound} и т.п.).
 const {
-    escapeHtml, formatAuthorsList, formatSeriesList, formatBooksList, formatBookCard,
+    escapeHtml, formatAuthorsList, formatSeriesList, formatTitlesList, formatBooksList, formatBookCard,
 } = require('./formatters');
 const {
     menuKeyboard, searchFieldKeyboard,
-    authorsKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
+    authorsKeyboard, titlesKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
 } = require('./keyboards');
 
 const fs = require('fs-extra');
 const MAX_SEND_BYTES = 50 * 1024 * 1024;
 
 function makeRenders(api, tg) {
-    
-    // lazy-кеш: getGenreTree() → Map<code, name> (для отображения жанров в карточке)
+    // lazy-кеш: getGenreTree() → Map<code, name>. При ошибке — сбрасываем,
+    // чтобы следующий вызов повторил (а не закешировал пустой Map навсегда).
     let genreMapPromise = null;
     async function getGenreMap() {
         if (!genreMapPromise) {
@@ -22,24 +23,25 @@ function makeRenders(api, tg) {
                     for (const g of section.value)
                         map.set(g.value, g.name);
                 return map;
-            }).catch(() => new Map());
+            }).catch(() => {
+                genreMapPromise = null;   // сброс — повторим при следующем вызове
+                return new Map();
+            });
         }
         return genreMapPromise;
     }
 
     async function renderMenu(chatId, messageId) {
         const text = '🔍 <b>inpx-web</b>\n\nЧто искать?';
-        const opts = { parse_mode: 'HTML', reply_markup: menuKeyboard() };
-        return tg.edit(chatId, messageId, text, opts);
+        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: menuKeyboard() });
     }
 
     async function renderSearchFields(chatId, messageId, searchText) {
-        const text = `🔍 Запрос: <b>${escapeHtml(searchText.slice(0, 100))}</b>\n\nЧто искать?`;
-        const opts = { parse_mode: 'HTML', reply_markup: searchFieldKeyboard() };
-        return tg.edit(chatId, messageId, text, opts);
+        const text = `🔍 Запрос: <b>${escapeHtml(String(searchText || '').slice(0, 100))}</b>\n\nЧто искать?`;
+        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: searchFieldKeyboard() });
     }
 
-    async function renderAuthors(chatId, messageId, term, offset, limit, authorsById) {
+    async function renderAuthors(chatId, messageId, term, offset, limit) {
         let res;
         try {
             res = await api.search('author', { author: term, del: '0', limit, offset });
@@ -50,9 +52,6 @@ function makeRenders(api, tg) {
             return tg.send(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
-        for (const a of res.found)
-            if (a.id && a.bookCount) authorsById.set(a.id, a);
-
         const totalPages = Math.ceil(res.totalFound / limit) || 1;
         const page = Math.floor(offset / limit);
         const showPrev = page > 0;
@@ -60,11 +59,13 @@ function makeRenders(api, tg) {
 
         const text = formatAuthorsList(res.found, res.totalFound);
         const keyboard = authorsKeyboard(res.found, page, totalPages, showPrev, showNext);
-        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        await tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        return { found: res.found, totalFound: res.totalFound };
     }
 
-    // term — '' для всех серий (автора); authorName — опциональный фильтр; noSeriesCount — для «Без серии»
-    async function renderSeries(chatId, messageId, term, offset, limit, seriesById, authorName, authorId, noSeriesCount) {
+    // term — '' для всех серий (автора); opts.authorName/authorId/noSeriesCount — опционально
+    async function renderSeries(chatId, messageId, term, offset, limit, opts = {}) {
+        const { authorName, authorId, noSeriesCount } = opts;
         let res;
         try {
             const query = { del: '0', limit, offset };
@@ -78,9 +79,6 @@ function makeRenders(api, tg) {
             return tg.send(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
-        for (const x of res.found)
-            if (x.id && x.bookCount) seriesById.set(x.id, x);
-
         const totalPages = Math.ceil(res.totalFound / limit) || 1;
         const page = Math.floor(offset / limit);
         const showPrev = page > 0;
@@ -88,34 +86,57 @@ function makeRenders(api, tg) {
 
         const text = formatSeriesList(res.found, res.totalFound);
         const keyboard = seriesKeyboard(res.found, authorId || 0, page, totalPages, showPrev, showNext, { noSeriesCount });
-        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        await tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        return { found: res.found, totalFound: res.totalFound };
     }
 
-    async function renderBooks(chatId, messageId, query, offset, limit, lastBooks, backCallback = 'menu:main') {
+    // поиск по названию: indexed (search('title')) → список названий
+    // (в titlesById.set(t.id, t) — t.books = книги названия, загружены search('title'))
+    async function renderTitles(chatId, messageId, term, offset, limit, titlesById) {
         let res;
         try {
-            res = await api.bookSearch(Object.assign({}, query, { limit, offset }));
+            res = await api.search('title', { title: term, del: '0', limit, offset });
         } catch (e) {
             if (e.message === 'DB_NOT_READY')
                 return tg.send(chatId, '⏳ Индекс загружается, попробуйте через несколько секунд.');
-            api.log(LM_ERR, `[telegram-bot][${chatId}] bookSearch failed: ${e.message}`);
+            api.log(LM_ERR, `[telegram-bot][${chatId}] search title failed: ${e.message}`);
             return tg.send(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
-        lastBooks.length = 0;
-        for (const b of (res.found || [])) lastBooks.push(b);
+        for (const t of res.found)
+            if (t.id && t.bookCount) titlesById.set(t.id, t);
 
         const totalPages = Math.ceil(res.totalFound / limit) || 1;
         const page = Math.floor(offset / limit);
         const showPrev = page > 0;
         const showNext = offset + limit < res.totalFound;
 
-        const text = formatBooksList(res.found, res.totalFound);
-        const keyboard = booksKeyboard(res.found, page, totalPages, showPrev, showNext, backCallback);
-        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
-        }
+        const text = formatTitlesList(res.found, res.totalFound);
+        const keyboard = titlesKeyboard(res.found, page, totalPages, showPrev, showNext);
+        await tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        return { found: res.found, totalFound: res.totalFound };
+    }
 
-        async function renderSeriesBooks(chatId, messageId, seriesName, authorName, offset, limit, lastBooks, backCallback = 'menu:main') {
+    // книги выбранного названия: books — из titlesById.get(id).books (уже загружены)
+    async function renderTitleBooks(chatId, messageId, titleName, books, offset, limit, backCallback = 'back:titles') {
+        const all = books || [];
+        const totalFound = all.length;
+        const found = all.slice(offset, offset + limit);
+
+        const totalPages = Math.ceil(totalFound / limit) || 1;
+        const page = Math.floor(offset / limit);
+        const showPrev = page > 0;
+        const showNext = offset + limit < totalFound;
+
+        const lines = [`📖 <b>${escapeHtml(titleName || '')}</b>`, ''];
+        lines.push(found.length ? `Найдено книг: <b>${totalFound}</b>. Выберите:` : 'Ничего не найдено.');
+        const keyboard = booksKeyboard(found, page, totalPages, showPrev, showNext, backCallback);
+        await tg.edit(chatId, messageId, lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+        return { found, totalFound };
+    }
+
+    // серия из автора: все книги серии + фильтр author (соавторы) в памяти
+    async function renderSeriesBooks(chatId, messageId, seriesName, authorName, offset, limit, backCallback = 'menu:main') {
         let list;
         try {
             list = await api.getSeriesBookList(seriesName);
@@ -136,9 +157,6 @@ function makeRenders(api, tg) {
         const totalFound = all.length;
         const found = all.slice(offset, offset + limit);
 
-        lastBooks.length = 0;
-        for (const b of found) lastBooks.push(b);
-
         const totalPages = Math.ceil(totalFound / limit) || 1;
         const page = Math.floor(offset / limit);
         const showPrev = page > 0;
@@ -146,10 +164,12 @@ function makeRenders(api, tg) {
 
         const text = formatBooksList(found, totalFound);
         const keyboard = booksKeyboard(found, page, totalPages, showPrev, showNext, backCallback);
-        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        await tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
+        return { found, totalFound };
     }
 
-    async function renderNoSeries(chatId, messageId, authorId, offset, limit, s) {
+    // «Без серии»: все книги автора без series
+    async function renderNoSeries(chatId, messageId, authorId, offset, limit, authorName, backCallback) {
         let list;
         try {
             list = await api.getAuthorBookList(authorId);
@@ -162,20 +182,17 @@ function makeRenders(api, tg) {
         const totalFound = all.length;
         const found = all.slice(offset, offset + limit);
 
-        s.lastBooks = found;
-        s.offset = offset;
-        s.pageContext = { kind: 'noseries', query: { authorId, authorName: s.authorName }, backCallback: `author:${authorId}` };
-
         const totalPages = Math.ceil(totalFound / limit) || 1;
         const page = Math.floor(offset / limit);
         const showPrev = page > 0;
         const showNext = offset + limit < totalFound;
 
-        const lines = [`📚 <b>${escapeHtml(s.authorName || '')}</b> — книги без серии`, ''];
+        const lines = [`📚 <b>${escapeHtml(authorName || '')}</b> — книги без серии`, ''];
         lines.push(found.length ? `Найдено: <b>${totalFound}</b>. Выберите книгу:` : 'Ничего не найдено.');
 
-        const keyboard = booksKeyboard(found, page, totalPages, showPrev, showNext, `author:${authorId}`);
-        return tg.edit(chatId, messageId, lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+        const keyboard = booksKeyboard(found, page, totalPages, showPrev, showNext, backCallback || `author:${authorId}`);
+        await tg.edit(chatId, messageId, lines.join('\n'), { parse_mode: 'HTML', reply_markup: keyboard });
+        return { found, totalFound };
     }
 
     async function renderBook(chatId, messageId, book) {
@@ -192,7 +209,6 @@ function makeRenders(api, tg) {
 
         const genreMap = await getGenreMap();
         const text = formatBookCard(book, info, genreMap);
-        
         return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: bookKeyboard(book._uid) });
     }
 
@@ -227,8 +243,9 @@ function makeRenders(api, tg) {
     }
 
     return {
-        renderMenu, renderSearchFields, renderAuthors, renderSeries, renderBooks,
-        renderNoSeries, renderBook, renderBookFile, renderSeriesBooks,
+        renderMenu, renderSearchFields, renderAuthors, renderSeries,
+        renderTitles, renderTitleBooks,
+        renderSeriesBooks, renderNoSeries, renderBook, renderBookFile
     };
 }
 

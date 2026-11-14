@@ -1,4 +1,5 @@
 const { Bot } = require('node-telegram-bot-api');
+const path = require('path');
 
 const { SessionStore } = require('./SessionStore');
 const { makeAccess } = require('./access');
@@ -13,7 +14,9 @@ class TelegramBotPlugin {
         this.config = config;
         this.bot = null;
         this.sessions = new SessionStore();
-        this.access = makeAccess(config);
+        // authFile — рядом с config.json плагина (не трогаем основной config)
+        const authFile = path.join(api.pluginsDir, api.pluginId, 'authorizedUsers.json');
+        this.access = makeAccess(config, { authFile });
         this.limit = Math.min(parseInt(config.maxResults, 10) || 10, 90);
     }
 
@@ -39,6 +42,12 @@ class TelegramBotPlugin {
         } catch (e) {
             api.log(LM_ERR, `[telegram-bot] waitReady failed: ${e.message}`);
             return;
+        }
+
+        try {
+            await this.access.loadAuthorized();
+        } catch (e) {
+            api.log(LM_WARN, `[telegram-bot] loadAuthorized failed: ${e.message}`);
         }
 
         this.bot = new Bot(config.token);

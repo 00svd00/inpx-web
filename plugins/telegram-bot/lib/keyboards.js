@@ -39,6 +39,20 @@ function authorsKeyboard(found, page, totalPages, showPrev, showNext) {
     return { inline_keyboard: rows };
 }
 
+function titlesKeyboard(found, page, totalPages, showPrev, showNext) {
+    const rows = [];
+    for (const t of found) {
+        if (!t.id || !t.bookCount) continue;
+        const cnt = t.bookCount > 1 ? ` (${t.bookCount})` : '';
+        const label = t.title || t.name || '(без названия)';
+        rows.push([{ text: `📖 ${label}${cnt}`, callback_data: `title:${t.id}` }]);
+    }
+    rows.push(navRow(page, totalPages, showPrev, showNext));
+    rows.push([{ text: '◀️ Меню', callback_data: 'menu:main' }]);
+    return { inline_keyboard: rows };
+}
+
+
 // authorId = 0 — «Без серии» не показываем (поиск серий по названию)
 function seriesKeyboard(found, authorId, page, totalPages, showPrev, showNext, opts = {}) {
     const rows = [];
@@ -78,6 +92,6 @@ function bookKeyboard(uid) {
 
 module.exports = {
     menuKeyboard, searchFieldKeyboard,
-    authorsKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
+    authorsKeyboard, titlesKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
     navRow,
 };

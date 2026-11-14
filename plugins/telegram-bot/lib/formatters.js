@@ -28,6 +28,12 @@ function formatSeriesList(found, totalFound) {
     return lines.join('\n');
 }
 
+function formatTitlesList(found, totalFound) {
+    const lines = [`📖 Найдено названий: <b>${totalFound}</b>`, ''];
+    lines.push(found.length ? 'Выберите название:' : 'Ничего не найдено.');
+    return lines.join('\n');
+}
+
 function formatBooksList(found, totalFound) {
     const lines = [`📖 Найдено книг: <b>${totalFound}</b>`, ''];
     lines.push(found.length ? 'Выберите книгу:' : 'Ничего не найдено.');
@@ -84,6 +90,6 @@ function formatHelp() {
 
 module.exports = {
     escapeHtml, truncate, bookLabel,
-    formatAuthorsList, formatSeriesList, formatBooksList, formatBookCard,
+    formatAuthorsList, formatSeriesList, formatTitlesList, formatBooksList, formatBookCard,
     formatHelp,
 };

@@ -1,5 +1,6 @@
-const SESSION_TTL_MS = 5 * 60 * 1000;     // 5 мин
-const CLEAN_INTERVAL_MS = 5 * 60 * 1000;   // 5 мин
+const SESSION_TTL_MS = 5 * 60 * 1000;
+const CLEAN_INTERVAL_MS = 5 * 60 * 1000;
+const AUTH_LOCK_MS = SESSION_TTL_MS + CLEAN_INTERVAL_MS;   // 10 мин (брутфорс)
 
 class SessionStore {
     constructor() {
@@ -37,12 +38,13 @@ class SessionStore {
                 searchText: '',
                 offset: 0,
                 pageContext: null,       // {kind, query, backCallback}
-                authorsById: new Map(),  // id -> author (для author:<id>)
-                seriesById: new Map(),   // id -> series (для series:<id>)
+                authorsById: new Map(),
+                titlesById: new Map(),   // id -> title (t.books — книги названия)
+                seriesById: new Map(),
                 authorId: 0,
                 authorName: '',
-                authorSeriesNoSeriesCount: 0,  // книг без серии у выбранного автора
-                lastBooks: [],           // книги текущего списка (для book:<uid>)
+                authorSeriesNoSeriesCount: 0,
+                lastBooks: [],
             };
             this.map.set(chatId, s);
         }
@@ -50,9 +52,29 @@ class SessionStore {
         return s;
     }
 
+    // сброс выбранного автора (новый контекст поиска)
+    resetAuthor(s) {
+        s.authorId = 0;
+        s.authorName = '';
+        s.authorSeriesNoSeriesCount = 0;
+    }
+
+    // сброс поискового текста (новый поиск)
+    resetSearch(s) {
+        s.searchText = '';
+        s.mode = 'menu';
+    }
+
+    // сброс пагинации (при смене контекста)
+    resetPage(s) {
+        s.pageContext = null;
+        s.offset = 0;
+        s.lastBooks = [];
+    }
+
     reset(chatId) {
         this.map.delete(chatId);
     }
 }
 
-module.exports = { SessionStore };
+module.exports = { SessionStore, SESSION_TTL_MS, CLEAN_INTERVAL_MS, AUTH_LOCK_MS };
