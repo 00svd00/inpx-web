@@ -8,7 +8,7 @@ const {
     authorsKeyboard, titlesKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
 } = require('./keyboards');
 
-const fs = require('fs-extra');
+const fsp = require('fs').promises;
 const MAX_SEND_BYTES = 50 * 1024 * 1024;
 
 function makeRenders(api, tg) {
@@ -47,7 +47,7 @@ function makeRenders(api, tg) {
 
     // term — '' для всех серий (автора); opts.authorName/authorId/noSeriesCount — опционально
     async function renderSeries(chatId, messageId, term, offset, limit, opts = {}) {
-        const { authorName, authorId, noSeriesCount } = opts;
+        const { authorName, authorId, noSeriesCount, seriesCounts } = opts;
         let res;
         try {
             const query = { del: '0', limit, offset };
@@ -67,7 +67,7 @@ function makeRenders(api, tg) {
         const showNext = offset + limit < res.totalFound;
 
         const text = formatSeriesList(res.found, res.totalFound);
-        const keyboard = seriesKeyboard(res.found, authorId || 0, page, totalPages, showPrev, showNext, { noSeriesCount });
+        const keyboard = seriesKeyboard(res.found, authorId || 0, page, totalPages, showPrev, showNext, { noSeriesCount, seriesCounts });
         await tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: keyboard });
         return { found: res.found, totalFound: res.totalFound };
     }
@@ -212,7 +212,7 @@ function makeRenders(api, tg) {
         if (onReady) await onReady();   // файл готов
         let stat;
         try {
-            stat = await fs.stat(file.path);
+            stat = await fsp.stat(file.path);
         } catch (e) {
             return tg.send(chatId, '⚠️ Файл не найден на сервере.');
         }

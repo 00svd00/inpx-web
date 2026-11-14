@@ -1,16 +1,14 @@
-const SESSION_TTL_MS = 5 * 60 * 1000;
-const CLEAN_INTERVAL_MS = 5 * 60 * 1000;
-const AUTH_LOCK_MS = SESSION_TTL_MS + CLEAN_INTERVAL_MS;   // 10 мин (брутфорс)
-
 class SessionStore {
-    constructor() {
+    constructor(opts = {}) {
+        this.ttlMs = (opts.sessionTtlMinutes || 5) * 60 * 1000;
+        this.cleanMs = (opts.cleanIntervalMinutes || 5) * 60 * 1000;
         this.map = new Map();
         this.cleanTimer = null;
     }
 
     startCleanup() {
         if (this.cleanTimer) return;
-        this.cleanTimer = setInterval(() => this.cleanup(), CLEAN_INTERVAL_MS);
+        this.cleanTimer = setInterval(() => this.cleanup(), this.cleanMs);
         if (this.cleanTimer.unref) this.cleanTimer.unref();
     }
 
@@ -23,10 +21,9 @@ class SessionStore {
 
     cleanup() {
         const now = Date.now();
-        for (const [chatId, s] of this.map) {
-            if (now - (s.lastActivity || 0) > SESSION_TTL_MS)
+        for (const [chatId, s] of this.map)
+            if (now - (s.lastActivity || 0) > this.ttlMs)
                 this.map.delete(chatId);
-        }
     }
 
     get(chatId) {
@@ -34,6 +31,8 @@ class SessionStore {
         if (!s) {
             s = {
                 authorized: false,
+                authFailures: 0,         // неверных паролей за сессию
+                authLocked: false,       // блокировка (снимается при истечении сессии)
                 mode: 'menu',            // 'menu'|'search'|'authors'|'series'|'books'|'book'
                 searchText: '',
                 offset: 0,
@@ -44,6 +43,7 @@ class SessionStore {
                 authorId: 0,
                 authorName: '',
                 authorSeriesNoSeriesCount: 0,
+                authorSeriesCounts: null,   // Map<series, count> (по автору; null — не считали)
                 lastBooks: [],
             };
             this.map.set(chatId, s);
@@ -57,6 +57,7 @@ class SessionStore {
         s.authorId = 0;
         s.authorName = '';
         s.authorSeriesNoSeriesCount = 0;
+        s.authorSeriesCounts = null;
     }
 
     // сброс поискового текста (новый поиск)
@@ -77,4 +78,4 @@ class SessionStore {
     }
 }
 
-module.exports = { SessionStore, SESSION_TTL_MS, CLEAN_INTERVAL_MS, AUTH_LOCK_MS };
+module.exports = { SessionStore };

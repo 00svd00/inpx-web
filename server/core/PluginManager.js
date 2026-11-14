@@ -124,11 +124,21 @@ class PluginManager {
             return;
         }
 
-        // сверка версии API (major)
+        // сверка версии API (major) — из package.json плагина
+        let plugApiVersion = API_VERSION;   // дефолт — текущая
+        const pkgFile = path.join(dir, 'package.json');
+        if (await fs.pathExists(pkgFile)) {
+            try {
+                const pkg = JSON.parse(await fs.readFile(pkgFile, 'utf8'));
+                if (pkg.apiVersion) plugApiVersion = pkg.apiVersion;
+            } catch (e) {
+                this._log(LM_WARN, `Plugins: ${id}: package.json: ${e.message}`);
+            }
+        }
         const apiMajor = String(API_VERSION).split('.')[0];
-        const plugMajor = String(cfg.apiVersion || API_VERSION).split('.')[0];
+        const plugMajor = String(plugApiVersion).split('.')[0];
         if (plugMajor !== apiMajor) {
-            this._log(LM_WARN, `Plugins: ${id}: apiVersion ${cfg.apiVersion} incompatible with ${API_VERSION}, skip`);
+            this._log(LM_WARN, `Plugins: ${id}: apiVersion ${plugApiVersion} incompatible with ${API_VERSION}, skip`);
             return;
         }
 

@@ -13,7 +13,10 @@ class TelegramBotPlugin {
         this.api = api;
         this.config = config;
         this.bot = null;
-        this.sessions = new SessionStore();
+        this.sessions = new SessionStore({
+            sessionTtlMinutes: config.sessionTtlMinutes,
+            cleanIntervalMinutes: config.cleanIntervalMinutes,
+        });
         // authFile — рядом с config.json плагина (не трогаем основной config)
         const authFile = path.join(api.pluginsDir, api.pluginId, 'authorizedUsers.json');
         this.access = makeAccess(config, { authFile });

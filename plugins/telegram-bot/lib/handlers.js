@@ -92,17 +92,26 @@ function makeHandlers(ctx) {
         s.authorName = author.author || author.name || '';
 
         let noSeriesCount = 0;
+        let seriesCounts = null;
         try {
             const list = await api.getAuthorBookList(id);
-            noSeriesCount = (list.books || []).filter(b => !b.series).length;
+            const books = list.books || [];
+            noSeriesCount = books.filter(b => !b.series).length;
+            seriesCounts = new Map();
+            for (const b of books) {
+                if (!b.series) continue;
+                const key = b.series;
+                seriesCounts.set(key, (seriesCounts.get(key) || 0) + 1);
+            }
         } catch (e) {
             api.log(LM_WARN, `[telegram-bot][${chatId}] getAuthorBookList failed: ${e.message}`);
         }
         s.authorSeriesNoSeriesCount = noSeriesCount;
+        s.authorSeriesCounts = seriesCounts;
 
         s.pageContext = { kind: 'series', query: { term: '', authorName: s.authorName, authorId: id } };
         const r = await renders.renderSeries(chatId, messageId, '', 0, limit, {
-            authorName: s.authorName, authorId: id, noSeriesCount,
+            authorName: s.authorName, authorId: id, noSeriesCount, seriesCounts,
         });
         if (r && r.found) for (const x of r.found) if (x.id && x.bookCount) s.seriesById.set(x.id, x);
     }
@@ -271,6 +280,7 @@ function makeHandlers(ctx) {
             const r = await renders.renderSeries(chatId, messageId, pc.query.term || '', offset, limit, {
                 authorName: pc.query.authorName, authorId: pc.query.authorId,
                 noSeriesCount: s.authorSeriesNoSeriesCount,
+                seriesCounts: s.authorSeriesCounts,
             });
             if (r && r.found) for (const x of r.found) if (x.id && x.bookCount) s.seriesById.set(x.id, x);
             return;
@@ -315,6 +325,7 @@ function makeHandlers(ctx) {
             const r = await renders.renderSeries(chatId, messageId, pc.query.term || '', 0, limit, {
                 authorName: pc.query.authorName, authorId: pc.query.authorId,
                 noSeriesCount: s.authorSeriesNoSeriesCount,
+                seriesCounts: s.authorSeriesCounts,
             });
             if (r && r.found) for (const x of r.found) if (x.id && x.bookCount) s.seriesById.set(x.id, x);
             return;
@@ -369,6 +380,9 @@ function makeHandlers(ctx) {
 
         // не авторизован
         if (!authed) {
+            if (s.authLocked)
+                return tg.send(chatId, `🚫 Вы заблокированы. Попробуйте через ${Math.ceil((sessions.ttlMs + sessions.cleanMs) / 60000)} мин.`);
+
             if (!access.password)
                 return tg.send(chatId, '🔒 Доступ запрещён.');
 
@@ -394,8 +408,8 @@ function makeHandlers(ctx) {
                 return renders.renderMenu(chatId, null);
             }
             if (r.locked)
-                return tg.send(chatId, `🚫 Вы заблокированы. Попробуйте через ${r.minutes} мин.`);
-            return tg.send(chatId, '❌ Не авторизован.');
+                return tg.send(chatId, `🚫 Вы заблокированы. Попробуйте через ${Math.ceil((sessions.ttlMs + sessions.cleanMs) / 60000)} мин.`);
+            return tg.send(chatId, '❌ Неверный пароль.');
         }
 
         // авторизован

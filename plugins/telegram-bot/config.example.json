@@ -1,8 +1,9 @@
 {
     "enabled": false,
-    "apiVersion": "1.0",
     "token": "",
     "accessPassword": "",
     "allowedUsers": [],
+    "sessionTtlMinutes": 5,
+    "cleanIntervalMinutes": 5,
     "maxResults": 10
 }

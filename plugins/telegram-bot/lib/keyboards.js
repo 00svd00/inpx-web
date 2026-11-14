@@ -62,7 +62,10 @@ function seriesKeyboard(found, authorId, page, totalPages, showPrev, showNext, o
     }
     for (const s of found) {
         if (!s.id || !s.bookCount) continue;
-        rows.push([{ text: `📚 ${s.series || s.name} (${s.bookCount})`, callback_data: `series:${s.id}` }]);
+        const name = s.series || s.name;
+        // по автору (seriesCounts) — если задано, иначе — bookCount серии (все авторы)
+        const cnt = (opts.seriesCounts && opts.seriesCounts.get(name)) || s.bookCount;
+        rows.push([{ text: `📚 ${name} (${cnt})`, callback_data: `series:${s.id}` }]);
     }
     rows.push(navRow(page, totalPages, showPrev, showNext));
     rows.push([{ text: '◀️ Меню', callback_data: 'menu:main' }]);

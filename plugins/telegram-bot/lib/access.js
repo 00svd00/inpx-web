@@ -6,7 +6,6 @@ function makeAccess(config, opts = {}) {
     const password = config.accessPassword || '';
     const authFile = opts.authFile || '';
     const maxFailures = opts.maxFailures || 3;
-    const lockMs = opts.lockMs || 10 * 60 * 1000;
     const authorizedUsers = new Set();   // Set<chatId string>, персистентно в authFile
 
     function norm(v) { return v === undefined || v === null ? '' : String(v); }
@@ -48,23 +47,23 @@ function makeAccess(config, opts = {}) {
         }
     }
 
-    // результат: { ok: true } | { ok: false, locked: true, minutes } | { ok: false }
+    // результат: { ok: true } | { ok: false, locked: true } | { ok: false }
+    // lock — boolean на сессии; снимается только когда сессия истекает
+    // (т.е. пользователь перестал слать сообщения на TTL + CLEAN_INTERVAL).
+    // Активный брутфорс — lock не снимается (намеренно).
     function checkPassword(session, text) {
-        const now = Date.now();
-        if (session.authLockedUntil && now < session.authLockedUntil) {
-            const minutes = Math.ceil((session.authLockedUntil - now) / 60000);
-            return { ok: false, locked: true, minutes };
-        }
+        if (session.authLocked)
+            return { ok: false, locked: true };
         if (text && text === password) {
             session.authorized = true;
             session.authFailures = 0;
-            session.authLockedUntil = 0;
+            session.authLocked = false;
             return { ok: true };
         }
         session.authFailures = (session.authFailures || 0) + 1;
         if (session.authFailures > maxFailures) {
-            session.authLockedUntil = now + lockMs;
-            return { ok: false, locked: true, minutes: Math.ceil(lockMs / 60000) };
+            session.authLocked = true;
+            return { ok: false, locked: true };
         }
         return { ok: false };
     }
