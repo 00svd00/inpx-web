@@ -12,25 +12,7 @@ const fs = require('fs-extra');
 const MAX_SEND_BYTES = 50 * 1024 * 1024;
 
 function makeRenders(api, tg) {
-    // lazy-кеш: getGenreTree() → Map<code, name>. При ошибке — сбрасываем,
-    // чтобы следующий вызов повторил (а не закешировал пустой Map навсегда).
-    let genreMapPromise = null;
-    async function getGenreMap() {
-        if (!genreMapPromise) {
-            genreMapPromise = api.getGenreTree().then(gt => {
-                const map = new Map();
-                for (const section of gt.genreTree)
-                    for (const g of section.value)
-                        map.set(g.value, g.name);
-                return map;
-            }).catch(() => {
-                genreMapPromise = null;   // сброс — повторим при следующем вызове
-                return new Map();
-            });
-        }
-        return genreMapPromise;
-    }
-
+    
     async function renderMenu(chatId, messageId) {
         const text = '🔍 <b>inpx-web</b>\n\nЧто искать?';
         return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: menuKeyboard() });
@@ -195,11 +177,12 @@ function makeRenders(api, tg) {
         return { found, totalFound };
     }
 
-    async function renderBook(chatId, messageId, book) {
+    async function renderBook(chatId, messageId, book, onReady) {
         let info = null;
         try {
             info = await api.getBookInfo(book._uid);
         } catch (e) {
+            if (onReady) await onReady();
             if (e.message && e.message.startsWith('404'))
                 return tg.edit(chatId, messageId, '⚠️ Книга не найдена (возможно, удалена из библиотеки).', {
                     reply_markup: { inline_keyboard: [[{ text: '◀️ Назад', callback_data: 'back:search' }]] },
@@ -207,22 +190,26 @@ function makeRenders(api, tg) {
             api.log(LM_WARN, `[telegram-bot][${chatId}] getBookInfo failed: ${e.message}`);
         }
 
-        const genreMap = await getGenreMap();
+        if (onReady) await onReady();   // материализация завершена, готовы показать
+
+        const genreMap = await api.getGenreMap();
         const text = formatBookCard(book, info, genreMap);
-        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: bookKeyboard(book._uid) });
+        return tg.edit(chatId, messageId, text, { parse_mode: 'HTML', reply_markup: bookKeyboard(book) });
     }
 
-    async function renderBookFile(chatId, uid) {
+    async function renderBookFile(chatId, uid, onReady) {
         let file;
         try {
             file = await api.getBookFile(uid, { format: 'zip' });
         } catch (e) {
+            if (onReady) await onReady();
             if (e.message && e.message.startsWith('404'))
                 return tg.send(chatId, '⚠️ Файл не найден (возможно, удалён из библиотеки).');
             api.log(LM_ERR, `[telegram-bot][${chatId}] getBookFile failed: ${e.message}`);
             return tg.send(chatId, `⚠️ Не удалось получить файл: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
         }
 
+        if (onReady) await onReady();   // файл готов
         let stat;
         try {
             stat = await fs.stat(file.path);

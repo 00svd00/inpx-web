@@ -81,13 +81,17 @@ function booksKeyboard(found, page, totalPages, showPrev, showNext, backCallback
     return { inline_keyboard: rows };
 }
 
-function bookKeyboard(uid) {
-    return {
-        inline_keyboard: [
-            [{ text: '⬇️ Скачать', callback_data: `dl:${uid}` }],
-            [{ text: '◀️ Назад', callback_data: 'back:search' }],
-        ],
-    };
+function bookKeyboard(book) {
+    const uid = book._uid;
+    const rows = [
+        [{ text: '⬇️ Скачать', callback_data: `dl:${uid}` }],
+    ];
+    if (book.author)
+        rows.push([{ text: '👤 Другие книги автора', callback_data: `cardauthor:${uid}` }]);
+    if (book.series)
+        rows.push([{ text: '📚 Другие книги серии', callback_data: `cardseries:${uid}` }]);
+    rows.push([{ text: '◀️ Назад', callback_data: 'back:search' }]);
+    return { inline_keyboard: rows };
 }
 
 module.exports = {

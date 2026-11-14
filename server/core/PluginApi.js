@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const path = require('path');
+const fs = require('fs-extra');
 
 // Версия контракта PluginApi для плагинов.
 // До первого публичного релиза — 1.0; после — растёт при breaking-изменениях.
@@ -100,8 +101,7 @@ class PluginApi {
 
     // ---- поиск ----
     async search(from, query)     { return this._call(this._webWorker.search, from, query); }
-    async bookSearch(query)       { return this._call(this._webWorker.bookSearch, query); }
-
+    async bookSearch(query)       { return this._call(this._webWorker.bookSearch, query); } //Дорого, не оптимизированно, на свой страх и риск. Лучше использовать search('author'|'series'|'title')
     // ---- книги ----
     async getBookLink(uid)        { return this._call(this._webWorker.getBookLink, uid); }
     async getBookInfo(uid)        { return this._call(this._webWorker.getBookInfo, uid); }
@@ -116,6 +116,7 @@ class PluginApi {
 
     // ---- жанры ----
     async getGenreTree()          { return this._call(this._webWorker.getGenreTree); }
+    async getGenreMap()           { return this._call(this._webWorker.getGenreMap); }
 
     // ---- статистика ----
     async getStats() {
@@ -142,6 +143,7 @@ class PluginApi {
     getAuthorPhotoMime(ext)        { return this._webWorker.getAuthorPhotoMime(ext); }
 
     // ---- избранное ----
+    // Общее на сервер для всех. Не подходит для многопользовательских плагинов
     async getFavorites(offset = 0, limit = 50) { return this._call(this._webWorker.getFavorites, offset, limit); }
     async getFavoriteUids()                     { return this._call(this._webWorker.getFavoriteUids); }
     async addFavorite(uid)                      { return this._call(this._webWorker.addFavorite, uid); }

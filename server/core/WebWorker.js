@@ -1133,7 +1133,7 @@ class WebWorker {
             const external = (memUsage.external / 1024 / 1024).toFixed(2);
             let loadAvg = os.loadavg();
             loadAvg = loadAvg.map(v => v.toFixed(2));
-            log(`Server stats [ rss: ${rss}MB, heapUsed: ${heapUsed}MB, heapTotal: ${heapTotal}MB, external: ${external}MB, loadAvg: (${loadAvg.join(', ')}) ]`);
+            log(`Server stats [ TotalMem: ${rss}MB, heapUsed: ${heapUsed}MB, heapTotal: ${heapTotal}MB, external: ${external}MB, loadAvg: (${loadAvg.join(', ')}) ]`);
         } catch (e) {
             log(LM_ERR, e.message);
         }

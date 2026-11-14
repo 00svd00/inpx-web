@@ -154,6 +154,71 @@ function makeHandlers(ctx) {
         if (r && r.found) s.lastBooks = r.found;
     }
 
+    // cardauthor:<uid> — «Другие книги автора» (первый автор, как OPDS)
+    async function onCardAuthor(tgCtx, data) {
+        const { chatId } = chatAndMsg(tgCtx);
+        const s = sessions.get(chatId);
+        const uid = data.slice(11);
+        const book = (s.lastBooks || []).find(b => b._uid === uid);
+        if (!book || !book.author)
+            return;
+
+        // OPDS: первый автор (split(',')); поиск — точное совпадение (=)
+        const firstAuthor = book.author.split(',')[0].trim();
+        if (!firstAuthor)
+            return;
+
+        const findAuthor = async (term) => {
+            try {
+                const res = await api.search('author', { author: term, del: '0', limit: 1 });
+                return (res.found && res.found[0]) || null;
+            } catch (e) {
+                api.log(LM_ERR, `[telegram-bot][${chatId}] search author failed: ${e.message}`);
+                return null;
+            }
+        };
+
+        // =firstAuthor (точное), затем fallback *firstAuthor (подстрока — варианты написания)
+        let a = await findAuthor(`=${firstAuthor}`) || await findAuthor(`*${firstAuthor}`);
+        if (!a)
+            return tg.send(chatId, `⚠️ Автор не найден: ${escapeHtml(firstAuthor)}`, { parse_mode: 'HTML' });
+
+        s.authorsById.set(a.id, a);
+        return onAuthor(tgCtx, `author:${a.id}`);
+    }
+
+    // cardseries:<uid> — «Другие книги серии» с карточки книги
+    async function onCardSeries(tgCtx, data) {
+        const { chatId } = chatAndMsg(tgCtx);
+        const s = sessions.get(chatId);
+        const uid = data.slice(11);
+        const book = (s.lastBooks || []).find(b => b._uid === uid);
+        if (!book || !book.series)
+            return;
+
+        let res;
+        try {
+            res = await api.search('series', { series: `=${book.series}`, del: '0', limit: 1 });
+        } catch (e) {
+            api.log(LM_ERR, `[telegram-bot][${chatId}] search series failed: ${e.message}`);
+            return tg.send(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+        }
+        if (!res.found || !res.found.length) {
+            // fallback: подстрока (варианты написания)
+            try {
+                res = await api.search('series', { series: `*${book.series}`, del: '0', limit: 1 });
+            } catch (e) {
+                return tg.send(chatId, `⚠️ Ошибка поиска: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+            }
+        }
+        if (!res.found || !res.found.length)
+            return tg.send(chatId, `⚠️ Серия не найдена: ${escapeHtml(book.series)}`, { parse_mode: 'HTML' });
+
+        const x = res.found[0];
+        s.seriesById.set(x.id, x);
+        return onSeries(tgCtx, `series:${x.id}`);
+    }
+
     // noseries:<authorId>
     async function onNoSeries(tgCtx, data) {
         const { chatId, messageId } = chatAndMsg(tgCtx);
@@ -172,18 +237,19 @@ function makeHandlers(ctx) {
         const uid = data.slice(5);
         const book = (s.lastBooks || []).find(b => b._uid === uid);
         if (!book) {
+            await tg.answer(tgCtx);   // book: — deferred, отвечаем до «Книга устарела»
             return tg.edit(chatId, messageId, 'Книга устарела. Начните поиск заново.', {
                 reply_markup: { inline_keyboard: [[{ text: '◀️ Меню', callback_data: 'menu:main' }]] },
             });
         }
-        return renders.renderBook(chatId, messageId, book);
+        return renders.renderBook(chatId, messageId, book, () => tg.answer(tgCtx));
     }
 
     // dl:<uid>
     async function onDownload(tgCtx, data) {
         const { chatId } = chatAndMsg(tgCtx);
         const uid = data.slice(3);
-        return renders.renderBookFile(chatId, uid);
+        return renders.renderBookFile(chatId, uid, () => tg.answer(tgCtx));
     }
 
     // page:<n>
@@ -380,7 +446,7 @@ function makeHandlers(ctx) {
     }
 
     return {
-        onMenu, onSearchField, onAuthor, onTitle, onSeries, onNoSeries,
+        onMenu, onSearchField, onAuthor, onTitle, onSeries, onCardAuthor, onCardSeries, onNoSeries,
         onBook, onDownload, onPage, onBack, onBackTitles, onNoop, onMessage,
     };
 }
