@@ -1,6 +1,5 @@
 {
     "enabled": false,
-    "apiVersion": "1.0",
     "greeting": "Hello from example plugin",
     "logStatsOnStart": true,
     "loadFullReviews": false

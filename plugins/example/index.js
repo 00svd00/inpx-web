@@ -160,6 +160,34 @@ module.exports = {
             api.log(LM_WARN, '[example] sample book not found, skip getBook* / reviews / bio');
         }
 
+        // ---- demo: точки расширения (1.6.5+) ----
+        // Регистрируем только если ядро их поддерживает (на случай старого ядра).
+        if (typeof api.registerOpdsBookLinks === 'function') {
+            api.registerOpdsBookLinks(async ({uid}) => {
+                if (!uid) return [];
+                return [{
+                    href: `https://example.com/reader?uid=${encodeURIComponent(uid)}`,
+                    rel: 'related',
+                    type: 'text/html',
+                    title: 'example-reader (OPDS)',
+                }];
+            }, 'example-opds-reader');
+
+            api.registerWebBookLinks(async ({uid}) => {
+                if (!uid) return [];
+                return [{
+                    key: 'example-reader',
+                    title: 'example-reader',
+                    hint: 'Открыть книгу во внешнем ридере',
+                    href: `https://example.com/reader?uid=${encodeURIComponent(uid)}`,
+                }];
+            }, 'example-web-reader');
+
+            api.log('[example] hooks registered (opdsBookLinks, webBookLinks)');
+        } else {
+            api.log(LM_WARN, '[example] hooks not available in this core (need 1.6.5+), skip');
+        }
+
         api.log('[example] started');
     },
 

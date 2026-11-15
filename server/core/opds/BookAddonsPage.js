@@ -174,13 +174,7 @@ class BookAddonsPage extends BasePage {
         result.entry = entries;
 
         // временно переопределяем this.title для <feed><title>
-        const oldTitle = this.title;
-        this.title = pageTitle;
-        try {
-            return this.makeBody(result, req);
-        } finally {
-            this.title = oldTitle;
-        }
+        return this.makeBody(result, req, {title: pageTitle});
     }
 }
 

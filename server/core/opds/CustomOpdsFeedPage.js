@@ -228,7 +228,7 @@ class CustomOpdsFeedPage extends BasePage {
         }
 
         result.entry = entry;
-        return this.makeBody(result, req);
+        return this.makeBody(result, req, {title: feed.name || 'Кастомный фид'});
     }
 }
 

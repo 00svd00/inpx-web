@@ -9,6 +9,8 @@
   },
   "scripts": {
     "test": "node --require ./test/helpers/preload.js --test \"test/unit/**/*.test.js\"",
+    "test:plugins": "node --require ./test/helpers/preload.js --test \"test/plugins/**/*.test.js\"",
+    "test:all": "npm test && npm run test:plugins",
     "test:smoke": "node --test \"test/smoke/**/*.test.js\"",
     "test:watch": "node --require ./test/helpers/preload.js --test --watch \"test/unit/**/*.test.js\"",
     "dev": "nodemon --inspect --ignore server/.inpx-web --ignore client --exec node --expose-gc server --lib-dir=server/.inpx-web/lib",

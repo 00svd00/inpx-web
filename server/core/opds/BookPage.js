@@ -1,6 +1,7 @@
 const path = require('path');
 const _ = require('lodash');
 const dayjs = require('dayjs');
+const hooks = require('../hooks');
 
 const BasePage = require('./BasePage');
 const { buildInfoList } = require('../book/bookInfoMapping');
@@ -343,6 +344,18 @@ class BookPage extends BasePage {
                     e.link.push(this.imgLink({href: bookInfo.cover, type: coverType}));
                     e.link.push(this.imgLink({href: bookInfo.cover, type: coverType, thumb: true}));
                 }
+                
+                // 7. hooks: ссылки от плагинов
+                // bookInfo — уже {book, cover, link, bookInfo}; entry — собранная entry.
+                const hookLinks = await hooks.runOpdsBookLinks({uid: bookUid, bookInfo, entry: e});
+                for (const l of hookLinks) {
+                    e.link.push(this.makeLink({
+                        href: l.href,
+                        rel: l.rel || 'related',
+                        type: l.type || 'text/html',
+                        title: l.title || l.href,
+                    }));
+                }
 
                 entry.push(e);
             }
@@ -350,7 +363,7 @@ class BookPage extends BasePage {
 
         result.entry = entry;
 
-        return this.makeBody(result, req);
+        return await this.makeBody(result, req);
     }
 }
 

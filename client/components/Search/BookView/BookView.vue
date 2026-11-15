@@ -81,6 +81,16 @@
                     </div>
                 </div>
 
+                <div v-for="item in extraLinks" :key="item.key">
+                    <div
+                        class="q-ml-sm clickable"
+                        :title="item.hint"
+                        @click.stop.prevent="emit('extLink', item)"
+                    >
+                        {{ item.title }}
+                    </div>
+                </div>
+
                 <div class="q-ml-sm clickable" @click.stop.prevent="emit('copyLink')">
                     <q-icon name="la la-copy" size="20px" />
                 </div>
@@ -130,6 +140,7 @@ class BookView {
         titleColor: { type: String, default: 'text-blue-10'},
         favoriteAction: String,  // 'add' | 'remove' | undefined
         isFavorite: Boolean,
+        extraLinks: { type: Array, default: () => [] },
     };
 
     showRates = true;

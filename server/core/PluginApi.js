@@ -1,9 +1,18 @@
 const _ = require('lodash');
 const path = require('path');
 const fs = require('fs-extra');
+const hooks = require('./hooks');
 
 // Версия контракта PluginApi для плагинов.
 // До первого публичного релиза — 1.0; после — растёт при breaking-изменениях.
+
+// Точки расширения (1.6.5+):
+//   api.registerOpdsPageMutator(fn, name?) — пост-обработка content в BasePage.makeBody.
+//   api.registerOpdsBookLinks(fn, name?)   — ссылки рядом с книгой в OPDS (BookPage.body).
+//   api.registerWebBookLinks(fn, name?)    — ссылки рядом с книгой в вебе (WS get-book-links).
+// Хуки снимаются автоматически при stopAll()/ошибке start(); api.unregister не нужен.
+// Ошибки хука изолированы: логируются, цепочка продолжается.
+
 const API_VERSION = '1.0';
 
 function safeConfig(config) {
@@ -97,6 +106,27 @@ class PluginApi {
         const link = await this._call(this._webWorker.getBookLink, uid);
         const hash = path.basename(link.link);
         return this._call(this._webWorker.resolveBookFile, hash, format);
+    }
+
+    // ---- точки расширения ----
+
+    // OPDS page-мутатор: fn(content, {req, page}) → content | undefined.
+    // Можно мутировать content in place (вернуть undefined) или вернуть новый.
+    // Built-in мутаторы идут первыми; порядок плагинов — по регистрации.
+    registerOpdsPageMutator(fn, name) {
+        hooks.registerOpdsPageMutator(this.pluginId, name, fn);
+    }
+
+    // Ссылки рядом с книгой в OPDS: fn({uid, bookInfo, entry}) → [{href, rel?, type?, title?}].
+    // bookInfo — {book, cover, link, bookInfo}; entry — уже собранная entry книги.
+    registerOpdsBookLinks(fn, name) {
+        hooks.registerOpdsBookLinks(this.pluginId, name, fn);
+    }
+
+    // Ссылки рядом с книгой в вебе: fn({uid, bookInfo}) → [{key, title, hint?, href?}].
+    // key — уникальный идентификатор (для v-for), title — подпись, href — ссылка (опц.).
+    registerWebBookLinks(fn, name) {
+        hooks.registerWebBookLinks(this.pluginId, name, fn);
     }
 
     // ---- поиск ----

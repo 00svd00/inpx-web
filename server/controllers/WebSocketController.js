@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const WebSocket = require ('ws');
+const hooks = require('../core/hooks');
 
 const WorkerState = require('../core/WorkerState');//singleton
 const WebWorker = require('../core/WebWorker');//singleton
@@ -101,6 +102,8 @@ class WebSocketController {
                     await this.getGenreTree(req, ws); break;
                 case 'get-book-link':
                     await this.getBookLink(req, ws); break;
+                case 'get-book-links':
+                    await this.getBookLinks(req, ws); break;
                 case 'get-book-info':
                     await this.getBookInfo(req, ws); break;
                 case 'get-book-reviews':
@@ -175,6 +178,7 @@ class WebSocketController {
         config.features = {
             reviewsEnabled: !!(config.dbConfig && config.dbConfig.stats && config.dbConfig.stats.reviewsEnabled),
             authorsBioEnabled: !!(config.dbConfig && config.dbConfig.stats && config.dbConfig.stats.authorsBioEnabled),
+            webBookLinks: hooks.hasWebBookLinks(),
             indexes: [],
         };
         if (config.features.reviewsEnabled) config.features.indexes.push('reviews_index');
@@ -243,6 +247,26 @@ class WebSocketController {
         const result = await this.webWorker.getBookLink(req.bookUid);
 
         this.send(result, req, ws);
+    }
+
+    async getBookLinks(req, ws) {
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        // если ни один плагин не зарегистрировал хук — не дёргаем дорогой getBookInfo
+        if (!hooks.hasWebBookLinks())
+            return this.send({items: []}, req, ws);
+
+        let bookInfo;
+        try {
+            bookInfo = await this.webWorker.getBookInfo(req.bookUid);
+        } catch (e) {
+            // книги нет — отдаём пустой список, клиент не падает
+            return this.send({items: []}, req, ws);
+        }
+
+        const items = await hooks.runWebBookLinks({uid: req.bookUid, bookInfo: bookInfo.bookInfo});
+        this.send({items}, req, ws);
     }
 
     async getBookInfo(req, ws) {
