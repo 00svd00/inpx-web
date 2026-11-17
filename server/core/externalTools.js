@@ -196,4 +196,31 @@ function runGui(t) {
     }
 }
 
-module.exports = { isAvailable, resolveExternal, resolveExternalByFileType, parseExternalKey, normalizeExternal, runCmd, runCmdExport, runGui, normExt };
+// OPDS-ссылки external (только type: 'download'). Набор тот же, что был в
+// BookPage.body вручную; вынесено для тестируемости.
+function getOpdsExternalLinks(config, bookInfo) {
+    if (!config || config.externalToolsEnabled === false)
+        return [];
+    if (!config.external || !bookInfo || !bookInfo.book)
+        return [];
+    const bookExt = (bookInfo.book.ext || '').toLowerCase();
+    const result = [];
+    for (const [key, ext] of Object.entries(config.external)) {
+        if (!isAvailable(config, key, bookExt))
+            continue;
+        if (ext.type !== 'download')
+            continue;
+        const formatExt = ext.ext || key;
+        result.push({
+            href: `${bookInfo.link}/ext-${key}`,
+            rel: 'http://opds-spec.org/acquisition',
+            type: `application/${formatExt}`,
+            title: ext.title || key,
+        });
+    }
+    return result;
+}
+
+module.exports = { isAvailable, resolveExternal, resolveExternalByFileType, 
+                    parseExternalKey, normalizeExternal, getOpdsExternalLinks, 
+                    runCmd, runCmdExport, runGui, normExt };

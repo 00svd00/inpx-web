@@ -1,47 +1,41 @@
 const BasePage = require('./BasePage');
+const { collectBookLinks } = require('./bookLinks');
 
 class BookAddonsPage extends BasePage {
     constructor(config) {
         super(config);
-
         this.id = 'book_addons';
         this.title = 'Дополнительные материалы';
     }
 
-    // дёшево: два db.select. true, если для книги есть хоть один доп. материал
-    async hasAddons(bookUid) {
-        if (!bookUid)
-            return false;
-
-        if (this.config.reviewsEnabled) {
-            try {
-                const reviewsCount = await this.webWorker.getBookReviewsCount(bookUid);
-                if (reviewsCount && reviewsCount.declaredCount)
-                    return true;
-            } catch (e) {
-                // reviews_disabled / 404 — пропускаем
+    navToRelated(book) {
+        const links = [];
+        if (book.author) {
+            const firstAuthor = book.author.split(',')[0].trim();
+            if (firstAuthor) {
+                links.push({
+                    href: `/author?author=${encodeURIComponent('=' + firstAuthor)}`,
+                    title: `Другие книги: ${firstAuthor}`,
+                });
             }
         }
-
-        if (this.config.authorsBioEnabled) {
-            try {
-                const authors = await this.webWorker.getBookAuthors(bookUid);
-                if (authors.some(a => a.found))
-                    return true;
-            } catch (e) {
-                // authors_disabled / 404 — пропускаем
-            }
+        if (book.series) {
+            const firstAuthor = book.author ? book.author.split(',')[0].trim() : '';
+            let href = `/series?series=${encodeURIComponent('=' + book.series)}`;
+            if (firstAuthor)
+                href += `&author=${encodeURIComponent('=' + firstAuthor)}`;
+            links.push({
+                href,
+                title: `Серия: ${book.series}${book.serno ? ` #${book.serno}` : ''}`,
+            });
         }
-
-        return false;
+        return links;
     }
 
     async body(req) {
         const result = {};
-
         const bookUid = req.query.uid;
 
-        // self-ссылка формируется вручную, без req.originalUrl
         const selfHref = bookUid
             ? `${this.opdsRoot}/book/addons?uid=${encodeURIComponent(bookUid)}`
             : `${this.opdsRoot}/book/addons`;
@@ -57,124 +51,96 @@ class BookAddonsPage extends BasePage {
         let pageTitle = 'Дополнительные материалы';
 
         if (bookUid) {
-            // информация о книге (для заголовка и названия entry «Книга»)
-            let bookInfo = null;
-            try {
-                const res = await this.webWorker.getBookInfo(bookUid);
-                bookInfo = res.bookInfo;
-            } catch (e) {
-                bookInfo = null;
-            }
+            const book = await this.webWorker.getBookRecord(bookUid).catch(() => null);
 
-            if (bookInfo && bookInfo.book.title)
-                pageTitle = `Дополнительные материалы: ${bookInfo.book.title}`;
+            if (book) {
+                pageTitle = `Дополнительные материалы: ${book.title || bookUid}`;
 
-            // 1. карточка книги — всегда
-            if (bookInfo) {
-                const b = bookInfo.book;
-                const series = b.series ? ` (Серия: ${b.series}${b.serno ? ` #${b.serno}` : ''})` : '';
-                entries.push(
-                    this.makeEntry({
-                        id: `book-${bookUid}`,
-                        title: `${b.title || 'Без названия'}${b.ext ? ` (${b.ext})` : ''}`,
-                        link: this.navLink({href: `/book?uid=${encodeURIComponent(bookUid)}&direct=1`}),
-                        content: {
-                            '*ATTRS': {type: 'text'},
-                            '*TEXT': `${this.bookAuthor(b.author)}${series}`,
-                        },
-                    })
-                );
-            } else {
-                // книга не найдена в БД — не должен сюда попасть (hasAddons вернул бы false),
-                // но на всякий случай
-                entries.push(
-                    this.makeEntry({
-                        id: `book-${bookUid}`,
-                        title: '[Книга]',
-                        link: this.navLink({href: `/book?uid=${encodeURIComponent(bookUid)}&direct=1`}),
-                    })
-                );
-            }
+                // карточка книги — subsection на /book?direct=1
+                const series = book.series ? ` (Серия: ${book.series}${book.serno ? ` #${book.serno}` : ''})` : '';
+                entries.push(this.makeEntry({
+                    id: `book-${bookUid}`,
+                    title: `${book.title || 'Без названия'}${book.ext ? ` (${book.ext})` : ''}`,
+                    link: this.navLink({href: `/book?uid=${encodeURIComponent(bookUid)}&direct=1`}),
+                    content: {
+                        '*ATTRS': {type: 'text'},
+                        '*TEXT': `${this.bookAuthor(book.author)}${series}`,
+                    },
+                }));
 
-            // 2. навигация: другие книги автора/серии
-            if (bookInfo) {
-                const b = bookInfo.book;
-                if (b.author) {
-                    const firstAuthor = b.author.split(',')[0].trim();
-                    if (firstAuthor) {
-                        entries.push(this.makeEntry({
-                            id: `author-books-${bookUid}`,
-                            title: `Другие книги: ${firstAuthor}`,
-                            link: this.navLink({href: `/author?author=${encodeURIComponent('=' + firstAuthor)}`}),
-                        }));
-                    }
+                let reviewsCount = null;
+                let authorsFound = null;
+                if (this.config.reviewsEnabled) {
+                    try { reviewsCount = await this.webWorker.getBookReviewsCount(bookUid); } catch (e) {}
                 }
-                if (b.series) {
+                if (this.config.authorsBioEnabled) {
+                    try {
+                        const authors = await this.webWorker.getBookAuthors(bookUid);
+                        authorsFound = authors.filter(a => a.found);
+                    } catch (e) {}
+                }
+
+                const L = await collectBookLinks({
+                    uid: bookUid,
+                    book,
+                    bookInfo: null,   // без материализации
+                    config: this.config,
+                    webWorker: this.webWorker,
+                    navToRelated: this.navToRelated(book),
+                    reviewsCount,
+                    authorsFound,
+                });
+
+                // nav + addons — как entries (acquisition/cover не рендерятся в navigation feed)
+                let index = 0;
+                for (const l of [...L.nav, ...L.addons]) {
+                    const id = l.key ? `${l.key}-${bookUid}` : `addon-${bookUid}-${index++}`;
+
+                    // navigation feed: ядровые related+atom → subsection
+                    // (ридеры в каталоге ждут subsection для переходов, related в каталоге
+                    let rel = l.rel;
+                    let type = l.type;
+                    if (l.key && rel === 'related' && type === 'application/atom+xml;profile=opds-catalog')
+                        rel = 'subsection';
+
                     entries.push(this.makeEntry({
-                        id: `series-books-${bookUid}`,
-                        title: `Серия: ${b.series}${b.serno ? ` #${b.serno}` : ''}`,
-                        link: this.navLink({href: `/series?series=${encodeURIComponent('=' + b.series)}`}),
+                        id,
+                        title: l.title || l.href,
+                        link: this.makeLink({href: l.href, rel, type, title: l.title}),
                     }));
                 }
-            }
-
-            // 3. рецензии — только если включены и есть данные
-            if (this.config.reviewsEnabled) {
-                let reviewsCount = null;
-                try {
-                    reviewsCount = await this.webWorker.getBookReviewsCount(bookUid);
-                } catch (e) {
-                    reviewsCount = null;
-                }
-
-                if (reviewsCount && reviewsCount.declaredCount) {
-                    let reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount})`;
-                    if (reviewsCount.sum) {
-                        const avg = (reviewsCount.sum / reviewsCount.declaredCount).toFixed(1);
-                        reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount}, средняя: ${avg})`;
-                    }
-                    entries.push(
-                        this.makeEntry({
-                            id: `reviews-${bookUid}`,
-                            title: reviewsTitle,
-                            link: this.navLink({href: `/book/reviews?uid=${encodeURIComponent(bookUid)}`}),
-                        })
-                    );
-                }
-            }
-
-            // 4. об авторах — только если включено и есть данные
-            if (this.config.authorsBioEnabled) {
-                try {
-                    const authors = await this.webWorker.getBookAuthors(bookUid);
-                    const found = authors.filter(a => a.found);
-                    if (found.length) {
-                        entries.push(
-                            this.makeEntry({
-                                id: `authors-${bookUid}`,
-                                title: `Об авторах (${found.length})`,
-                                link: this.navLink({href: `/book/authors?uid=${encodeURIComponent(bookUid)}`}),
-                            })
-                        );
-                    }
-                } catch (e) {
-                    // authors_disabled / 404 — пропускаем
-                }
+            } else {
+                entries.push(this.makeEntry({
+                    id: `book-${bookUid}`,
+                    title: '[Книга не найдена]',
+                    link: this.navLink({href: '/root'}),
+                }));
             }
         } else {
-            entries.push(
-                this.makeEntry({
-                    id: 'no-uid',
-                    title: '[Не указан идентификатор книги]',
-                    link: this.navLink({href: '/root'}),
-                })
-            );
+            entries.push(this.makeEntry({
+                id: 'no-uid',
+                title: '[Не указан идентификатор книги]',
+                link: this.navLink({href: '/root'}),
+            }));
+        }
+
+        if (!entries.length) {
+            entries.push(this.makeEntry({
+                id: 'empty',
+                title: '[Дополнительных материалов нет]',
+                link: this.navLink({href: '/root'}),
+            }));
         }
 
         result.entry = entries;
 
-        // временно переопределяем this.title для <feed><title>
-        return this.makeBody(result, req, {title: pageTitle});
+        const oldTitle = this.title;
+        this.title = pageTitle;
+        try {
+            return await this.makeBody(result, req);
+        } finally {
+            this.title = oldTitle;
+        }
     }
 }
 
