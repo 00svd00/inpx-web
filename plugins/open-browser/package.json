@@ -1,0 +1,9 @@
+{
+    "name": "inpx-web-plugin-open-browser",
+    "version": "1.0.0",
+    "private": true,
+    "apiVersion": "1.0",
+    "description": "Opens inpx-web interface in a new browser window on server startup",
+    "main": "index.js",
+    "license": "CC0-1.0"
+}

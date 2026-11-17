@@ -1,0 +1,8 @@
+{
+    "enabled": false,
+    "url": "http://127.0.0.1:12380",
+    "browserPath": "",
+    "browserArgs": [],
+    "delayMs": 300,
+    "readyTimeoutMs": 300000
+}
