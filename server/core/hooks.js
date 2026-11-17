@@ -87,20 +87,41 @@ async function runOpdsBookLinks(ctx) {
     return result;
 }
 
-async function runWebBookLinks(ctx) {
-    const result = [];
+// Плагинный webBookLinks: контракт БАТЧЕВЫЙ.
+// fn(items) → {uid: [{key, title, hint?, href}]} | Map<uid, items[]> | undefined
+//   items: [{uid, book}] — book из БД (без материализации).
+// Ядро мержит результаты всех плагинов по uid.
+// per-book — обёртка runWebBookLinks(uid, book) (один элемент в батче).
+async function runWebBookLinksBatch(items) {
+    const result = {};
+    if (!Array.isArray(items) || !items.length)
+        return result;
+
     for (const {pluginId, name, fn} of webBookLinks) {
         try {
-            const out = await fn(ctx);
-            if (Array.isArray(out))
-                for (const it of out)
+            const out = await fn(items);
+            if (!out)
+                continue;
+            const entries = (out instanceof Map ? out.entries() : Object.entries(out));
+            for (const [uid, arr] of entries) {
+                if (!Array.isArray(arr))
+                    continue;
+                if (!result[uid])
+                    result[uid] = [];
+                for (const it of arr)
                     if (it && it.key && it.title)
-                        result.push(it);
+                        result[uid].push(it);
+            }
         } catch (e) {
             log(LM_ERR, `hook ${pluginId}/${name} (webBookLinks) failed: ${e && e.message ? e.message : e}`);
         }
     }
     return result;
+}
+
+async function runWebBookLinks(uid, book) {
+    const map = await runWebBookLinksBatch([{uid, book}]);
+    return map[uid] || [];
 }
 
 function snapshot() {
@@ -121,6 +142,7 @@ module.exports = {
     hasWebBookLinks,
     runOpdsPageMutators,
     runOpdsBookLinks,
+    runWebBookLinksBatch,
     runWebBookLinks,
     snapshot,
 };

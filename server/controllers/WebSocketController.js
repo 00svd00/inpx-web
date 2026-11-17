@@ -104,6 +104,8 @@ class WebSocketController {
                     await this.getBookLink(req, ws); break;
                 case 'get-book-links':
                     await this.getBookLinks(req, ws); break;
+                case 'get-books-links':
+                    await this.getBooksLinks(req, ws); break;
                 case 'get-book-info':
                     await this.getBookInfo(req, ws); break;
                 case 'get-book-reviews':
@@ -249,24 +251,40 @@ class WebSocketController {
         this.send(result, req, ws);
     }
 
+    // per-book: один uid → {items: [...]}
     async getBookLinks(req, ws) {
         if (!utils.hasProp(req, 'bookUid'))
             throw new Error(`bookUid is empty`);
 
-        // если ни один плагин не зарегистрировал хук — не дёргаем дорогой getBookInfo
         if (!hooks.hasWebBookLinks())
             return this.send({items: []}, req, ws);
 
-        let bookInfo;
-        try {
-            bookInfo = await this.webWorker.getBookInfo(req.bookUid);
-        } catch (e) {
-            // книги нет — отдаём пустой список, клиент не падает
+        const book = await this.webWorker.getBookRecord(req.bookUid);
+        if (!book)
             return this.send({items: []}, req, ws);
-        }
 
-        const items = await hooks.runWebBookLinks({uid: req.bookUid, bookInfo: bookInfo.bookInfo});
+        const items = await hooks.runWebBookLinks(req.bookUid, book);
         this.send({items}, req, ws);
+    }
+
+    // батч: массив uid → {links: {uid: [...]}}
+    async getBooksLinks(req, ws) {
+        if (!Array.isArray(req.uids))
+            throw new Error(`uids is not an array`);
+
+        if (!hooks.hasWebBookLinks())
+            return this.send({links: {}}, req, ws);
+
+        const uids = req.uids.filter(uid => typeof uid === 'string' && uid);
+        if (!uids.length)
+            return this.send({links: {}}, req, ws);
+
+        const books = await this.webWorker.getBooks(uids);
+        const byUid = new Map(books.map(b => [b._uid, b]));
+        const items = uids.map(uid => ({uid, book: byUid.get(uid) || null}));
+
+        const links = await hooks.runWebBookLinksBatch(items);
+        this.send({links}, req, ws);
     }
 
     async getBookInfo(req, ws) {

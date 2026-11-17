@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 
 const express = require('express');
+const basicAuth = require('express-basic-auth');
 const http = require('http');
 const WebSocket = require ('ws');
 
@@ -207,6 +208,21 @@ async function main() {
 
     const opds = require('./core/opds');
     opds(app, config);
+
+    // auth для plugin-routes — симметрично /opds
+    if (config.opds && config.opds.password) {
+        if (!config.opds.user)
+            throw new Error('User must not be empty if password set');
+        app.use(['/plugin', '/plugin/*'], basicAuth({
+            users: {[config.opds.user]: config.opds.password},
+            challenge: true,
+        }));
+    }
+
+    // plugin HTTP routes dispatcher — до статики, чтобы /plugin/* не перехватывалось
+    const pluginRoutes = require('./core/routes');
+    pluginRoutes.mount(app, '/plugin');
+
 
     const initAuthorPhoto = require('./core/AuthorPhotoRoute');
     initAuthorPhoto(app, config);

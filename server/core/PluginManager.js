@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const hooks = require('./hooks');
+const routes = require('./routes');
 
 const { PluginApi, API_VERSION } = require('./PluginApi');
 
@@ -176,6 +177,7 @@ class PluginManager {
         } catch (e) {
             // частично зарегистрированные хуки плагина — снимаем
             hooks.unregisterPlugin(id);
+            routes.unregisterPlugin(id);
             this._log(LM_ERR, `Plugins: ${id}: start failed: ${e.message}`);
         }
     }
@@ -189,6 +191,7 @@ class PluginManager {
                 this._log(LM_WARN, `Plugins: ${id}: stop: ${e.message}`);
             }
             hooks.unregisterPlugin(id);
+            routes.unregisterPlugin(id);
         }
         this.plugins.clear();
         this._removeUnhandledGuard();

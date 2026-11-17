@@ -83,6 +83,7 @@ class Api {
     //jsonMessage = '';
     progress = 0;
     accessToken = '';
+    bookLinksCache = new Map();
 
     created() {
         this.commit = this.$store.commit;
@@ -260,6 +261,34 @@ class Api {
 
     async getBookLink(bookUid) {
         return await this.request({action: 'get-book-link', bookUid}, 120);
+    }
+
+    async getBookLinks(bookUid) {
+        if (this.bookLinksCache.has(bookUid))
+            return {items: this.bookLinksCache.get(bookUid)};
+        const res = await this.request({action: 'get-book-links', bookUid}, 30);
+        if (res && Array.isArray(res.items))
+            this.bookLinksCache.set(bookUid, res.items);
+        return res;
+    }
+
+    async getBooksLinks(uids) {
+        const missing = (uids || []).filter(u => u && !this.bookLinksCache.has(u));
+        if (missing.length) {
+            try {
+                const res = await this.request({action: 'get-books-links', uids: missing}, 30);
+                const links = (res && res.links) || {};
+                for (const uid of missing)
+                    this.bookLinksCache.set(uid, Array.isArray(links[uid]) ? links[uid] : []);
+            } catch (e) {
+                for (const uid of missing)
+                    this.bookLinksCache.set(uid, []);
+            }
+        }
+        const result = {};
+        for (const uid of (uids || []))
+            result[uid] = this.bookLinksCache.get(uid) || [];
+        return {links: result};
     }
 
     async getBookInfo(bookUid) {

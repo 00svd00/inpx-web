@@ -83,6 +83,8 @@ function resolveExternalByFileType(config, fileType, params) {
 // доступен ли инструмент для данной книги (без выполнения)
 // active — включён; cmd — есть; onlyExt — список разрешённых ext (пусто/нет = все)
 function isAvailable(config, key, bookExt) {
+    if (config && config.externalToolsEnabled === false)
+        return false;
     const ext = config && config.external && config.external[key];
     if (!ext || !ext.active || !ext.cmd)
         return false;

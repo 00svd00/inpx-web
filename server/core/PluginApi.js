@@ -2,6 +2,7 @@ const _ = require('lodash');
 const path = require('path');
 const fs = require('fs-extra');
 const hooks = require('./hooks');
+const routes = require('./routes');
 
 // Версия контракта PluginApi для плагинов.
 // До первого публичного релиза — 1.0; после — растёт при breaking-изменениях.
@@ -9,7 +10,8 @@ const hooks = require('./hooks');
 // Точки расширения (1.6.5+):
 //   api.registerOpdsPageMutator(fn, name?) — пост-обработка content в BasePage.makeBody.
 //   api.registerOpdsBookLinks(fn, name?)   — ссылки рядом с книгой в OPDS (BookPage.body).
-//   api.registerWebBookLinks(fn, name?)    — ссылки рядом с книгой в вебе (WS get-book-links).
+//   api.registerWebBookLinks(fn, name?)  — fn(items) → {uid: [...]}; items: [{uid, book}].
+//                                          book — запись БД, без материализации.
 // Хуки снимаются автоматически при stopAll()/ошибке start(); api.unregister не нужен.
 // Ошибки хука изолированы: логируются, цепочка продолжается.
 
@@ -129,12 +131,27 @@ class PluginApi {
         hooks.registerWebBookLinks(this.pluginId, name, fn);
     }
 
+    // HTTP-роут плагина: path — относительно /plugin/<id>/, должен начинаться с '/'.
+    // handler: async (req, res, next) => {...}; ошибка (rejection) → next(err).
+    // opts.method: 'GET' (default) | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'ALL'.
+    // Снимается автоматически при stopAll()/ошибке start().
+    registerRoute(path, handler, opts) {
+        routes.registerRoute(this.pluginId, path, handler, opts);
+    }
+
     // ---- поиск ----
     async search(from, query)     { return this._call(this._webWorker.search, from, query); }
     async bookSearch(query)       { return this._call(this._webWorker.bookSearch, query); } //Дорого, не оптимизированно, на свой страх и риск. Лучше использовать search('author'|'series'|'title')
+    
     // ---- книги ----
     async getBookLink(uid)        { return this._call(this._webWorker.getBookLink, uid); }
     async getBookInfo(uid)        { return this._call(this._webWorker.getBookInfo, uid); }
+
+    // ---- книги (без материализации) ----
+    // getBook(uid) → запись book из БД или null (дёшево, без парсинга fb2/epub).
+    // getBooks(uids) → массив записей (один db.select, @@hash([uids])).
+    async getBook(uid)  { return this._call(this._webWorker.getBookRecord, uid); }
+    async getBooks(uids) { return this._call(this._webWorker.getBooks, uids); }
 
     // OPDS-модель «автор → серии + без серии»:
     //   getAuthorBookList(authorId)  -> {author, books}  — ВСЕ книги автора (включая без серии)

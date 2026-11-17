@@ -675,6 +675,16 @@ class WebWorker {
         return (rows.length ? rows[0] : null);
     }
 
+    async getBooks(uids) {
+        this.checkMyState();
+        if (!uids || !uids.length)
+            return [];
+        return await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(Array.from(uids))})`,
+        });
+    }
+
     //для файлов, попавших в кеш до появления полки, bookUid в .d.json нет — ищем по хешу
     async getBookUidByHash(hash) {
         this.checkMyState();

@@ -11,6 +11,7 @@ const propsToSave = [
     'libDir',
     'inpx',
     'inpxFilterFile',
+    'externalToolsEnabled',
     'externalToolsConfig',
     'customOpdsFeeds',
     'customOpdsFeedsFile',
