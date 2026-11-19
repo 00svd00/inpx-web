@@ -4,7 +4,7 @@ const { makeFakeWebWorker } = require('./fakeWebWorker');
 // Создаёт «страницу» OPDS без конструктора BasePage
 // (конструктор делает new WebWorker(config) — singleton + фоновые циклы).
 // Прототип даёт реальные makeBody/escape/makeEntry/makeLink/navLink/downLink/
-// imgLink/acqLink/baseLinks/addPlainNavLinks; XmlParser — реальный.
+// imgLink/acqLink/baseLinks; XmlParser — реальный.
 function makePage(PageClass, opts = {}) {
     const config = Object.assign({
         opdsRoot: '/opds',

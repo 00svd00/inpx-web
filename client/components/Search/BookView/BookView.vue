@@ -75,10 +75,21 @@
                     (скачать)
                 </div>
 
-                <div v-for="item in externalItems" :key="item.key">
-                    <div class="q-ml-sm clickable" :title="item.hint" @click.stop.prevent="emit('ext-' + item.key)">
-                        {{ item.title }}
-                    </div>
+                <div v-for="item in allLinks" :key="item.key">
+                    <a
+                        v-if="item.href"
+                        :href="item.href"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="q-ml-sm clickable"
+                        :title="item.hint"
+                    >{{ item.title }}</a>
+                    <div
+                        v-else
+                        class="q-ml-sm clickable"
+                        :title="item.hint"
+                        @click.stop.prevent="emit(item.onClick)"
+                    >{{ item.title }}</div>
                 </div>
 
                 <div class="q-ml-sm clickable" @click.stop.prevent="emit('copyLink')">
@@ -110,6 +121,7 @@
 import vueComponent from '../../vueComponent.js';
 
 import * as utils from '../../../share/utils';
+import { isSafeHref } from '../../../share/externalItems';
 
 const componentOptions = {
     components: {
@@ -138,9 +150,11 @@ class BookView {
     showDeleted = false;
     showDates = false;
     showJson = false;
+    extraLinks = [];
 
-    created() {
+    async created() {
         this.loadSettings();
+        await this.loadExtraLinks();
     }
 
     loadSettings() {
@@ -250,11 +264,47 @@ class BookView {
     }
 
     get externalItems() {
-        return utils.getExternalItems(this.config.external, this.book && this.book.ext);
+        return utils.getExternalItems(
+            this.config.external,
+            this.book && this.book.ext,
+            this.config.externalToolsEnabled !== false,
+        );
     }
 
     emit(action) {
         this.$emit('bookEvent', {action, book: this.book});
+    }
+
+    get allLinks() {
+        const result = [];
+        for (const it of this.externalItems)
+            result.push({
+                key: `ext-${it.key}`,
+                title: it.title,
+                hint: it.hint,
+                onClick: `ext-${it.key}`,
+            });
+        for (const it of this.extraLinks)
+            result.push({
+                key: `plugin-${it.key}`,
+                title: it.title,
+                hint: it.hint || '',
+                href: it.href,
+            });
+        return result;
+    }
+
+    async loadExtraLinks() {
+        if (!this.config.features || !this.config.features.webBookLinks)
+            return;
+        if (!this.book || !this.book._uid)
+            return;
+        try {
+            const res = await this.$root.api.getBookLinks(this.book._uid);
+            this.extraLinks = ((res && res.items) || []).filter(it => isSafeHref(it.href));
+        } catch (e) {
+            this.extraLinks = [];
+        }
     }
 }
 

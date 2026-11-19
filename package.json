@@ -1,6 +1,6 @@
 {
   "name": "inpx-web",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "author": "Book Pauk <bookpauk@gmail.com>",
   "license": "CC0-1.0",
   "repository": "bookpauk/inpx-web",
@@ -9,6 +9,8 @@
   },
   "scripts": {
     "test": "node --require ./test/helpers/preload.js --test \"test/unit/**/*.test.js\"",
+    "test:plugins": "node --require ./test/helpers/preload.js --test \"test/plugins/**/*.test.js\"",
+    "test:all": "npm test && npm run test:plugins",
     "test:smoke": "node --test \"test/smoke/**/*.test.js\"",
     "test:watch": "node --require ./test/helpers/preload.js --test --watch \"test/unit/**/*.test.js\"",
     "dev": "nodemon --inspect --ignore server/.inpx-web --ignore client --exec node --expose-gc server --lib-dir=server/.inpx-web/lib",
@@ -23,6 +25,7 @@
     "build:macos": "npm run build:client && node build/prepkg.js macos && node build/fetch-napi.js node22-macos-x64 && npm run build:bundle && node build/pkg-with-conditional.js node22-macos-x64 dist/macos/inpx-web dist/bundle/index.js",
     "build:macos-arm64": "npm run build:client && node build/prepkg.js macos-arm64 && node build/fetch-napi.js node22-macos-arm64 && npm run build:bundle && node build/pkg-with-conditional.js node22-macos-arm64 dist/macos-arm64/inpx-web dist/bundle/index.js",
     "build:client-dev": "webpack --config build/webpack.dev.config.js",
+    "build:plugin": "node build/build-plugin.js",
     "build:all": "npm run build:linux && npm run build:win && npm run build:macos && npm run build:linux-arm64",
     "release": "npm run build:all && node build/release.js",
     "release:linux": "npm run build:linux && node build/release.js linux",

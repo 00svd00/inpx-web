@@ -1,0 +1,10 @@
+{
+    "enabled": false,
+    "token": "",
+    "accessPassword": "",
+    "allowedUsers": [],
+    "sessionTtlMinutes": 5,
+    "cleanIntervalMinutes": 5,
+    "maxResults": 10,
+    "readyTimeoutMs": 90000
+}

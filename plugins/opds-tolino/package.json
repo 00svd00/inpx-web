@@ -1,0 +1,9 @@
+{
+    "name": "inpx-web-plugin-opds-tolino",
+    "version": "1.0.0",
+    "private": true,
+    "apiVersion": "1.0",
+    "description": "Tolino-совместимость для OPDS: plain-дубль навигационной ссылки",
+    "main": "index.js",
+    "license": "CC0-1.0"
+}

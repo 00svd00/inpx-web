@@ -5,6 +5,8 @@ function makeFakeWebWorker(opts = {}) {
         getBookReviewsCount: 0,
         getBookAuthors: 0,
         getBookInfo: 0,
+        getBookRecord: 0, 
+        getBooks: 0,
         getGenreMap: 0,
         getGenreTree: 0,
         getBookReviews: 0,
@@ -28,6 +30,23 @@ function makeFakeWebWorker(opts = {}) {
             calls.getBookInfo++;
             if (opts.getBookInfo) return opts.getBookInfo(uid);
             return {bookInfo: null};
+        },
+        async getBookRecord(uid) {
+            calls.getBookRecord = (calls.getBookRecord || 0) + 1;
+            if (opts.getBookRecord) return opts.getBookRecord(uid);
+            return {
+                _uid: uid,
+                title: 'T',
+                author: 'A',
+                series: 'S',
+                serno: 1,
+                ext: 'fb2',
+            };
+        },
+        async getBooks(uids) {
+            calls.getBooks = (calls.getBooks || 0) + 1;
+            if (opts.getBooks) return opts.getBooks(uids);
+            return [];
         },
         async getGenreMap() {
             calls.getGenreMap++;

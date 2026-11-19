@@ -1,0 +1,6 @@
+{
+    "enabled": false,
+    "greeting": "Hello from example plugin",
+    "logStatsOnStart": true,
+    "loadFullReviews": false
+}

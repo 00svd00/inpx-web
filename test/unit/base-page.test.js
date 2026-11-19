@@ -81,42 +81,6 @@ test('bookAuthor: 1–3 автора, >3 → «и др.»', () => {
     assert.strictEqual(page.bookAuthor('A,B,C,D,E'), 'A, B, C и др.');
 });
 
-// --- addPlainNavLinks -----------------------------------------------------
-
-test('addPlainNavLinks: дублирует subsection без rel', () => {
-    const page = makePage();
-    const content = {
-        entry: [{
-            id: 'x', title: 'X',
-            link: [
-                {'*ATTRS': {href: '/x', rel: 'subsection', type: 'application/atom+xml;profile=opds-catalog'}},
-                {'*ATTRS': {href: '/d', rel: 'http://opds-spec.org/acquisition', type: 'application/fb2'}},
-            ],
-        }],
-    };
-    page.addPlainNavLinks(content);
-    const links = content.entry[0].link;
-    assert.strictEqual(links.length, 3);
-    const plain = links[2]['*ATTRS'];
-    assert.strictEqual(plain.href, '/x');
-    assert.strictEqual(plain.rel, undefined);
-});
-
-test('addPlainNavLinks: не дублирует, если уже есть ссылка без rel', () => {
-    const page = makePage();
-    const content = {
-        entry: [{
-            id: 'x', title: 'X',
-            link: [
-                {'*ATTRS': {href: '/x', rel: 'subsection'}},
-                {'*ATTRS': {href: '/x'}},
-            ],
-        }],
-    };
-    page.addPlainNavLinks(content);
-    assert.strictEqual(content.entry[0].link.length, 2);
-});
-
 // --- filterBooks ----------------------------------------------------------
 
 function book(over = {}) {

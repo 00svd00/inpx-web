@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const WebSocket = require ('ws');
+const hooks = require('../core/hooks');
 
 const WorkerState = require('../core/WorkerState');//singleton
 const WebWorker = require('../core/WebWorker');//singleton
@@ -101,6 +102,10 @@ class WebSocketController {
                     await this.getGenreTree(req, ws); break;
                 case 'get-book-link':
                     await this.getBookLink(req, ws); break;
+                case 'get-book-links':
+                    await this.getBookLinks(req, ws); break;
+                case 'get-books-links':
+                    await this.getBooksLinks(req, ws); break;
                 case 'get-book-info':
                     await this.getBookInfo(req, ws); break;
                 case 'get-book-reviews':
@@ -175,6 +180,7 @@ class WebSocketController {
         config.features = {
             reviewsEnabled: !!(config.dbConfig && config.dbConfig.stats && config.dbConfig.stats.reviewsEnabled),
             authorsBioEnabled: !!(config.dbConfig && config.dbConfig.stats && config.dbConfig.stats.authorsBioEnabled),
+            webBookLinks: hooks.hasWebBookLinks(),
             indexes: [],
         };
         if (config.features.reviewsEnabled) config.features.indexes.push('reviews_index');
@@ -243,6 +249,42 @@ class WebSocketController {
         const result = await this.webWorker.getBookLink(req.bookUid);
 
         this.send(result, req, ws);
+    }
+
+    // per-book: один uid → {items: [...]}
+    async getBookLinks(req, ws) {
+        if (!utils.hasProp(req, 'bookUid'))
+            throw new Error(`bookUid is empty`);
+
+        if (!hooks.hasWebBookLinks())
+            return this.send({items: []}, req, ws);
+
+        const book = await this.webWorker.getBookRecord(req.bookUid);
+        if (!book)
+            return this.send({items: []}, req, ws);
+
+        const items = await hooks.runWebBookLinks(req.bookUid, book);
+        this.send({items}, req, ws);
+    }
+
+    // батч: массив uid → {links: {uid: [...]}}
+    async getBooksLinks(req, ws) {
+        if (!Array.isArray(req.uids))
+            throw new Error(`uids is not an array`);
+
+        if (!hooks.hasWebBookLinks())
+            return this.send({links: {}}, req, ws);
+
+        const uids = req.uids.filter(uid => typeof uid === 'string' && uid);
+        if (!uids.length)
+            return this.send({links: {}}, req, ws);
+
+        const books = await this.webWorker.getBooks(uids);
+        const byUid = new Map(books.map(b => [b._uid, b]));
+        const items = uids.map(uid => ({uid, book: byUid.get(uid) || null}));
+
+        const links = await hooks.runWebBookLinksBatch(items);
+        this.send({links}, req, ws);
     }
 
     async getBookInfo(req, ws) {

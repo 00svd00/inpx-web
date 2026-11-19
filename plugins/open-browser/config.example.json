@@ -1,0 +1,8 @@
+{
+    "enabled": false,
+    "url": "",
+    "browserPath": "",
+    "browserArgs": [],
+    "delayMs": 300,
+    "readyTimeoutMs": 90000
+}

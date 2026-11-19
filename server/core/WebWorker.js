@@ -22,6 +22,7 @@ const genreTree = require('./genres');
 const { canonicalGenre } = require('./genres/genreUtils');
 const Fb2Helper = require('./fb2/Fb2Helper');
 const EpubHelper = require('./epub/EpubHelper');
+const { bookContentType } = require('./book/bookFormats');
 
 // 7z read and covers
 const { extractFb2Data } = require('./fb2/fb2Cover');
@@ -552,6 +553,54 @@ class WebWorker {
         }
     }
 
+    // Принимает hash уже материализованного файла (bookDir/<hash>).
+    // Материализация (включая remote lib: downloadBook) — в getBookLink/restoreBook, НЕ здесь.
+    // fileType: undefined | 'raw' | 'zip'. ext-<key> НЕ поддерживается (это ветка static.js).
+    async resolveBookFile(hash, fileType) {
+        this.checkMyState();
+
+        const bookFile = path.join(this.config.bookDir, hash);
+        const bookFileDesc = `${bookFile}.d.json`;
+
+        if (!await fs.pathExists(bookFile) || !await fs.pathExists(bookFileDesc))
+            throw new Error('404 Файл не найден');
+
+        const desc = JSON.parse(await fs.readFile(bookFileDesc, 'utf8'));
+        const bookExt = path.extname(desc.libFile || desc.downFileName || '').toLowerCase();
+        const isGzipStored = (bookExt !== '.epub');
+
+        if (fileType === 'zip') {
+            const zipFile = `${bookFile}.zip`;
+            if (!await fs.pathExists(zipFile)) {
+                const rawSrc = isGzipStored
+                    ? await this._ensureRaw(bookFile)
+                    : bookFile;
+                await utils.generateZip(zipFile, rawSrc, desc.downFileName);
+            }
+            return { path: zipFile, filename: `${desc.downFileName}.zip`, mime: 'application/zip', gzipped: false };
+        }
+
+        if (!isGzipStored)
+            return { path: bookFile, filename: desc.downFileName, mime: bookContentType(desc.downFileName), gzipped: false };
+
+        // fb2 (gzip)
+        if (fileType === 'raw') {
+            const rawFile = await this._ensureRaw(bookFile);
+            return { path: rawFile, filename: desc.downFileName, mime: bookContentType(desc.downFileName), gzipped: false };
+        }
+
+        // fileType undefined — отдать gzip как есть (клиент с Accept-Encoding: gzip)
+        return { path: bookFile, filename: desc.downFileName, mime: bookContentType(desc.downFileName), gzipped: true };
+    }
+
+    async _ensureRaw(bookFile) {
+        const rawFile = `${bookFile}.raw`;
+        if (!await fs.pathExists(rawFile))
+            await utils.gunzipFile(bookFile, rawFile);
+        return rawFile;
+    }
+
+
     async restoreBook(bookUid, libFolder, libFile, downFileName) {
         const db = this.db;
 
@@ -624,6 +673,16 @@ class WebWorker {
         const db = this.db;
         const rows = await db.select({table: 'book', where: `@@hash('_uid', ${db.esc(bookUid)})`});
         return (rows.length ? rows[0] : null);
+    }
+
+    async getBooks(uids) {
+        this.checkMyState();
+        if (!uids || !uids.length)
+            return [];
+        return await this.db.select({
+            table: 'book',
+            where: `@@hash('_uid', ${this.db.esc(Array.from(uids))})`,
+        });
     }
 
     //для файлов, попавших в кеш до появления полки, bookUid в .d.json нет — ищем по хешу
@@ -1077,11 +1136,14 @@ class WebWorker {
 
     logServerStats() {
         try {
-            const memUsage = process.memoryUsage().rss/(1024*1024);//Mb
+            const memUsage = process.memoryUsage();
+            const rss = (memUsage.rss / 1024 / 1024).toFixed(2);
+            const heapUsed = (memUsage.heapUsed / 1024 / 1024).toFixed(2);
+            const heapTotal = (memUsage.heapTotal / 1024 / 1024).toFixed(2);
+            const external = (memUsage.external / 1024 / 1024).toFixed(2);
             let loadAvg = os.loadavg();
             loadAvg = loadAvg.map(v => v.toFixed(2));
-
-            log(`Server stats [ memUsage: ${memUsage.toFixed(2)}MB, loadAvg: (${loadAvg.join(', ')}) ]`);
+            log(`Server stats [ TotalMem: ${rss}MB, heapUsed: ${heapUsed}MB, heapTotal: ${heapTotal}MB, external: ${external}MB, loadAvg: (${loadAvg.join(', ')}) ]`);
         } catch (e) {
             log(LM_ERR, e.message);
         }

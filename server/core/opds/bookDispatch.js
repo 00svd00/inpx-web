@@ -6,11 +6,6 @@ module.exports = function makeBookDispatch(config, {book, bookAddons}) {
         async body(req, res) {
             if (config.opdsBookAddonsInCard || req.query.direct)
                 return book.body(req, res);
-
-            const hasAddons = await bookAddons.hasAddons(req.query.uid);
-            if (!hasAddons)
-                return book.body(req, res);
-
             return bookAddons.body(req, res);
         },
     };

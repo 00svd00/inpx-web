@@ -1,31 +1,15 @@
 const fs = require('fs-extra');
 const path = require('path');
-const yazl = require('yazl');
 
 const express = require('express');
 const utils = require('./core/utils');
 const WebWorker = require('./core/WebWorker');//singleton
 const Favorites = require('./core/Favorites');
 const webAppDir = require('../build/appdir');
-const { bookContentType } = require('./core/book/bookFormats');
 const { resolveExternalByFileType, runCmd, runCmdExport, runGui } = require('./core/externalTools');
 
 const log = new (require('./core/AppLogger'))().log;//singleton
 
-function generateZip(zipFile, dataFile, dataFileInZip) {
-    return new Promise((resolve, reject) => {
-        const zip = new yazl.ZipFile();
-        zip.addFile(dataFile, dataFileInZip);
-        zip.outputStream
-            .pipe(fs.createWriteStream(zipFile)).on('error', reject)
-            .on('finish', (err) => {
-                if (err) reject(err);
-                else resolve();
-            }
-        );
-        zip.end();
-    });
-}
 
 //книга отдана клиенту — кладем ее на полку «Избранное»
 async function addToFavorites(config, desc, hash, descFile) {
@@ -87,92 +71,72 @@ module.exports = (app, config) => {
                     await utils.touchFile(bookFileDesc);
 
                     const desc = JSON.parse(await fs.readFile(bookFileDesc, 'utf8'));
-                    let downFileName = desc.downFileName;
-
-                    // epub в кеше — zip как есть (restoreBook не гзипит epub); остальное — gzip
                     const bookExt = path.extname(desc.libFile || desc.downFileName || '').toLowerCase();
-                    const isGzipStored = (bookExt !== '.epub');
 
-                    let gzipped = isGzipStored;
+                    // external tools — отдельная ветка, НЕ через resolveBookFile
+                    if (fileType && fileType !== 'raw' && fileType !== 'zip') {
+                        const t = resolveExternalByFileType(config, fileType, {
+                            bookExt,
+                            bookFile,
+                            downFileName: desc.downFileName,
+                            desc,
+                        });
 
-                    if (!req.acceptsEncodings('gzip') || fileType) {
-                        const rawFile = `${bookFile}.raw`;
+                        if (!t)
+                            throw new Error(`File type '${fileType}' is not active or has empty cmd`);
 
-                        // источник «сырого» файла: для gzip — распакованный raw, для epub — сам <hash> (zip)
-                        let rawSrc = bookFile;
-                        if (isGzipStored) {
-                            if (!await fs.pathExists(rawFile))
-                                await utils.gunzipFile(bookFile, rawFile);
-                            rawSrc = rawFile;
+                        if (req.method === 'HEAD')
+                            return res.end();
+
+                        if (t.type === 'gui') {
+                            runGui(t);
+                            return res.end();
                         }
-                        gzipped = false;
 
-                        if (fileType === undefined || fileType === 'raw') {
-                            bookFile = rawSrc;
-                        } else if (fileType === 'zip') {
-                            bookFile += '.zip';
-                            if (!await fs.pathExists(bookFile))
-                                await generateZip(bookFile, rawSrc, downFileName);
-                            downFileName += '.zip';
-                        } else {
-                            const t = resolveExternalByFileType(config, fileType, {
-                                bookExt,
-                                bookFile,
-                                downFileName,
-                                desc,
-                            });
-
-                            if (!t)
-                                throw new Error(`File type '${fileType}' is not active or has empty cmd`);
-
-                            if (req.method === 'HEAD')
-                                return res.end();
-
-                            if (t.type === 'gui') {
-                                runGui(t);
+                        if (t.type === 'cmd' || t.type === 'download') {
+                            try {
+                                runCmd(t);
+                            } catch (e) {
                                 return res.end();
                             }
 
-                            if (t.type === 'cmd' || t.type === 'download') {
+                            if (t.cmdExportLine && await fs.pathExists(t.resultFile)) {
                                 try {
-                                    runCmd(t);
+                                    runCmdExport(t);
                                 } catch (e) {
                                     return res.end();
                                 }
-
-                                if (t.cmdExportLine && await fs.pathExists(t.resultFile)) {
-                                    try {
-                                        runCmdExport(t);
-                                    } catch (e) {
-                                        return res.end();
-                                    }
-                                }
-
-                                if (t.type === 'download') {
-                                    if (!await fs.pathExists(t.resultFile))
-                                        throw new Error(`File not exists: '${t.resultFile}'`);
-                                    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(t.filename)}`);
-                                    res.set('Content-Length', fs.statSync(t.resultFile).size);
-                                    res.set('Cache-Control', 'private');
-                                    return res.sendFile(t.resultFile);
-                                }
-                                return res.end();
                             }
 
-                            throw new Error(`External tool '${t.key}': unknown type '${t.type}'`);
+                            if (t.type === 'download') {
+                                if (!await fs.pathExists(t.resultFile))
+                                    throw new Error(`File not exists: '${t.resultFile}'`);
+                                res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(t.filename)}`);
+                                res.set('Content-Length', fs.statSync(t.resultFile).size);
+                                res.set('Cache-Control', 'private');
+                                return res.sendFile(t.resultFile);
+                            }
+                            return res.end();
                         }
+
+                        throw new Error(`External tool '${t.key}': unknown type '${t.type}'`);
                     }
 
-                    //отдача файла
+                    // обычные форматы (undefined/raw/zip) — через resolveBookFile.
+                    // Сохраняем прежнее поведение: без Accept-Encoding: gzip — отдаём raw.
+                    const effectiveFileType = (fileType === undefined && !req.acceptsEncodings('gzip'))
+                        ? 'raw'
+                        : fileType;
+
+                    const webWorker = new WebWorker(config);
+                    const {path: filePath, filename, mime, gzipped} = await webWorker.resolveBookFile(fileName, effectiveFileType);
+
                     if (gzipped)
                         res.set('Content-Encoding', 'gzip');
-                    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(downFileName)}`);
-
-                    const contentType = bookContentType(downFileName);
-                    if (contentType)
-                        res.type(contentType);
-
-                    res.sendFile(bookFile);
+                    res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(filename)}`);
+                    if (mime)
+                        res.type(mime);
+                    res.sendFile(filePath);
 
                     if (req.method === 'GET')
                         addToFavorites(config, desc, fileName, bookFileDesc);

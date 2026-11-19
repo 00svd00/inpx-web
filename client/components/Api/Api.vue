@@ -83,6 +83,12 @@ class Api {
     //jsonMessage = '';
     progress = 0;
     accessToken = '';
+    
+    // webBookLinks: кэш + буфер батча
+    bookLinksCache = new Map();          // uid -> items[]
+    _linkBuffer = new Set();             // uid'ы, ждущие flush
+    _linkBufferResolvers = new Map();    // uid -> [{resolve, reject}]
+    _linkBufferTimer = null;
 
     created() {
         this.commit = this.$store.commit;
@@ -262,6 +268,70 @@ class Api {
         return await this.request({action: 'get-book-link', bookUid}, 120);
     }
 
+    async getBookLinks(bookUid) {
+        if (!bookUid)
+            return {items: []};
+        if (this.bookLinksCache.has(bookUid))
+            return {items: this.bookLinksCache.get(bookUid)};
+
+        return new Promise((resolve, reject) => {
+            if (!this._linkBufferResolvers.has(bookUid))
+                this._linkBufferResolvers.set(bookUid, []);
+            this._linkBufferResolvers.get(bookUid).push({resolve, reject});
+            this._linkBuffer.add(bookUid);
+
+            if (!this._linkBufferTimer)
+                this._linkBufferTimer = setTimeout(() => this._flushLinkBuffer(), 0);
+        });
+    }
+
+    async getBooksLinks(uids) {
+        const missing = (uids || []).filter(u => u && !this.bookLinksCache.has(u));
+        if (missing.length) {
+            try {
+                const res = await this.request({action: 'get-books-links', uids: missing}, 30);
+                const links = (res && res.links) || {};
+                for (const uid of missing)
+                    this.bookLinksCache.set(uid, Array.isArray(links[uid]) ? links[uid] : []);
+            } catch (e) {
+                for (const uid of missing)
+                    this.bookLinksCache.set(uid, []);
+            }
+        }
+        const result = {};
+        for (const uid of (uids || []))
+            result[uid] = this.bookLinksCache.get(uid) || [];
+        return {links: result};
+    }
+
+    async _flushLinkBuffer() {
+        const uids = Array.from(this._linkBuffer);
+        const resolvers = this._linkBufferResolvers;
+        this._linkBuffer.clear();
+        this._linkBufferResolvers = new Map();
+        this._linkBufferTimer = null;
+
+        if (!uids.length)
+            return;
+
+        try {
+            const res = await this.request({action: 'get-books-links', uids}, 30);
+            const links = (res && res.links) || {};
+            for (const uid of uids) {
+                const items = Array.isArray(links[uid]) ? links[uid] : [];
+                this.bookLinksCache.set(uid, items);
+                for (const r of (resolvers.get(uid) || []))
+                    r.resolve({items});
+            }
+        } catch (e) {
+            for (const uid of uids) {
+                this.bookLinksCache.set(uid, []);
+                for (const r of (resolvers.get(uid) || []))
+                    r.resolve({items: []});
+            }
+        }
+    }
+
     async getBookInfo(bookUid) {
         return await this.request({action: 'get-book-info', bookUid}, 120);
     }
@@ -299,6 +369,13 @@ class Api {
     }
 
     async logout() {
+        this.bookLinksCache = new Map();
+        this._linkBuffer.clear();
+        this._linkBufferResolvers = new Map();
+        if (this._linkBufferTimer) {
+            clearTimeout(this._linkBufferTimer);
+            this._linkBufferTimer = null;
+        }
         await this.request({action: 'logout'});
         this.accessGranted = false;
         await this.request({action: 'test'});

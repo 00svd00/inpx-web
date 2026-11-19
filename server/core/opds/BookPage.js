@@ -1,12 +1,14 @@
 const path = require('path');
 const _ = require('lodash');
 const dayjs = require('dayjs');
+const hooks = require('../hooks');
 
 const BasePage = require('./BasePage');
 const { buildInfoList } = require('../book/bookInfoMapping');
 const { bookFormats } = require('../book/bookFormats');
 const { isAvailable } = require('../externalTools');
 const { canonicalGenre } = require('../genres/genreUtils');
+const { collectBookLinks, makeNavToRelated } = require('./bookLinks');
 
 class BookPage extends BasePage {
     constructor(config) {
@@ -41,32 +43,8 @@ class BookPage extends BasePage {
     }
 
     // навигационные ссылки «другие книги автора/серии» (первый автор, первая серия)
-    navToRelated(bookInfo) {
-        const links = [];
-        const book = bookInfo.book;
-
-        if (book.author) {
-            const firstAuthor = book.author.split(',')[0].trim();
-            if (firstAuthor) {
-                links.push({
-                    href: `/author?author=${encodeURIComponent('=' + firstAuthor)}`,
-                    title: `Другие книги: ${firstAuthor}`,
-                });
-            }
-        }
-
-        if (book.series) {
-            const firstAuthor = book.author ? book.author.split(',')[0].trim() : '';
-            let href = `/series?series=${encodeURIComponent('=' + book.series)}`;
-            if (firstAuthor)
-                href += `&author=${encodeURIComponent('=' + firstAuthor)}`;
-            links.push({
-                href,
-                title: `Серия: ${book.series}${book.serno ? ` #${book.serno}` : ''}`,
-            });
-        }
-
-        return links;
+    navToRelated(book) {
+        return makeNavToRelated(book);
     }
 
     inpxInfo(bookRec) {
@@ -242,16 +220,6 @@ class BookPage extends BasePage {
                 //content
                 info += this.htmlInfo('Inpx инфо', this.inpxInfo(bookInfo.book));
 
-                // рецензии: счётчики (дёшево)
-                let reviewsCount = null;
-                if (this.config.opdsBookAddonsInCard && this.config.reviewsEnabled) {
-                    try {
-                        reviewsCount = await this.webWorker.getBookReviewsCount(bookUid);
-                    } catch (e) {
-                        // reviews_disabled / 404 — пропускаем
-                    }
-                }
-
                 content = `${ann}${info}`;
                 if (content) {
                     e.content = {
@@ -260,88 +228,43 @@ class BookPage extends BasePage {
                     };
                 }
 
-                //links
+                // ссылки: единая точка
+                let reviewsCount = null;
+                let authorsFound = null;
+                if (this.config.opdsBookAddonsInCard) {
+                    if (this.config.reviewsEnabled) {
+                        try { reviewsCount = await this.webWorker.getBookReviewsCount(bookUid); } catch (e) {}
+                    }
+                    if (this.config.authorsBioEnabled) {
+                        try {
+                            const authors = await this.webWorker.getBookAuthors(bookUid);
+                            authorsFound = authors.filter(a => a.found);
+                        } catch (e) {}
+                    }
+                }
+
+                const L = await collectBookLinks({
+                    uid: bookUid,
+                    book: bookInfo.book,
+                    bookInfo,
+                    config: this.config,
+                    webWorker: this.webWorker,
+                    reviewsCount,
+                    authorsFound,
+                });
+
                 e.link = [];
-                // 1. acquisition
-                for (const [fileFormat, downHref] of Object.entries(formats))
-                    e.link.push(this.downLink({href: downHref, type: `application/${fileFormat}`}));
-
-                // 2. навигация: другие книги автора/серии (всегда; subsection → plain-дубль для Tolino на автора)
-                for (const nav of this.navToRelated(bookInfo)) {
-                    e.link.push(this.makeLink({
-                        href: `${this.opdsRoot}${nav.href}`,
-                        rel: 'related',
-                        type: 'application/atom+xml;profile=opds-catalog',
-                        title: nav.title,
-                    }));
+                for (const l of L.acquisition)
+                    e.link.push(this.downLink({href: l.href, type: l.type, title: l.title}));
+                if (this.config.opdsBookAddonsInCard) {
+                    for (const l of L.nav)
+                        e.link.push(this.makeLink({href: l.href, rel: l.rel, type: l.type, title: l.title}));
+                    for (const l of L.addons)
+                        e.link.push(this.makeLink({href: l.href, rel: l.rel, type: l.type, title: l.title}));
                 }
-
-                // 3. рецензии (related)
-                if (this.config.opdsBookAddonsInCard && reviewsCount && reviewsCount.declaredCount) {
-                    const reviewsHref = `${this.opdsRoot}/book/reviews?uid=${encodeURIComponent(bookUid)}`;
-                    let reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount})`;
-                    if (reviewsCount.sum) {
-                        const avg = (reviewsCount.sum / reviewsCount.declaredCount).toFixed(1);
-                        reviewsTitle = `Рецензии (оценок: ${reviewsCount.declaredCount}, средняя: ${avg})`;
-                    }
-
-                    e.link.push(this.makeLink({
-                        href: reviewsHref,
-                        rel: 'related',
-                        type: 'application/atom+xml;profile=opds-catalog',
-                        title: reviewsTitle,
-                    }));
-                }
-
-                // 4. авторы/био (related)
-                if (this.config.opdsBookAddonsInCard && this.config.authorsBioEnabled) {
-                    try {
-                        const authors = await this.webWorker.getBookAuthors(bookUid);
-                        const found = authors.filter(a => a.found);
-                        if (found.length) {
-                            const authorsHref = `${this.opdsRoot}/book/authors?uid=${encodeURIComponent(bookUid)}`;
-                            const authorsTitle = `Об авторах (${found.length})`;
-                            e.link.push(this.makeLink({
-                                href: authorsHref,
-                                rel: 'related',
-                                type: 'application/atom+xml;profile=opds-catalog',
-                                title: authorsTitle,
-                            }));
-                        }
-                    } catch (e) {
-                        // authors_disabled / 404 — пропускаем
-                    }
-                }
-
-                // 5. external tools
-                if (this.config.external) {
-                    const bookExt = (bookInfo.book.ext || '').toLowerCase();
-                    for (const [key, ext] of Object.entries(this.config.external)) {
-                        if (!isAvailable(this.config, key, bookExt))
-                            continue;
-
-                        // в OPDS имеет смысл только download: cmd/gui/link не отдают файл
-                        if (ext.type !== 'download')
-                            continue;
-
-                        const formatExt = ext.ext || key;
-                        const mime = `application/${formatExt}`;
-
-                        e.link.push(this.downLink({
-                            href: `${bookInfo.link}/ext-${key}`,
-                            type: mime,
-                            title: ext.title || key,
-                        }));
-                    }
-                }
-
-                // 6. Cover
-                if (bookInfo.cover) {
-                    const coverType = bookInfo.coverType
-                        || (path.extname(bookInfo.cover) == '.png' ? 'image/png' : 'image/jpeg');
-
-                    e.link.push(this.imgLink({href: bookInfo.cover, type: coverType}));
-                    e.link.push(this.imgLink({href: bookInfo.cover, type: coverType, thumb: true}));
+                for (const l of L.cover) {
+                    e.link.push(this.imgLink({href: l.href, type: l.type}));
+                    e.link.push(this.imgLink({href: l.href, type: l.type, thumb: true}));
                 }
 
                 entry.push(e);
@@ -350,7 +273,7 @@ class BookPage extends BasePage {
 
         result.entry = entry;
 
-        return this.makeBody(result, req);
+        return await this.makeBody(result, req);
     }
 }
 

@@ -1,0 +1,104 @@
+function menuKeyboard() {
+    return {
+        inline_keyboard: [
+            [{ text: '👤 Авторы', callback_data: 'menu:author' }],
+            [{ text: '📚 Серии', callback_data: 'menu:series' }],
+            [{ text: '📖 Книги', callback_data: 'menu:title' }],
+            [{ text: '❓ Помощь', callback_data: 'menu:help' }],
+        ],
+    };
+}
+
+function searchFieldKeyboard() {
+    return {
+        inline_keyboard: [
+            [{ text: '👤 Автор', callback_data: 'search:author' }],
+            [{ text: '📚 Серия', callback_data: 'search:series' }],
+            [{ text: '📖 Книга', callback_data: 'search:title' }],
+            [{ text: '◀️ Меню', callback_data: 'menu:main' }],
+        ],
+    };
+}
+
+function navRow(page, totalPages, showPrev, showNext) {
+    const nav = [];
+    if (showPrev) nav.push({ text: '◀️', callback_data: `page:${page - 1}` });
+    nav.push({ text: `${page + 1}/${Math.max(1, totalPages)}`, callback_data: 'noop' });
+    if (showNext) nav.push({ text: '▶️', callback_data: `page:${page + 1}` });
+    return nav;
+}
+
+function authorsKeyboard(found, page, totalPages, showPrev, showNext) {
+    const rows = [];
+    for (const a of found) {
+        if (!a.id || !a.bookCount) continue;
+        rows.push([{ text: `👤 ${a.author || a.name} (${a.bookCount})`, callback_data: `author:${a.id}` }]);
+    }
+    rows.push(navRow(page, totalPages, showPrev, showNext));
+    rows.push([{ text: '◀️ Меню', callback_data: 'menu:main' }]);
+    return { inline_keyboard: rows };
+}
+
+function titlesKeyboard(found, page, totalPages, showPrev, showNext) {
+    const rows = [];
+    for (const t of found) {
+        if (!t.id || !t.bookCount) continue;
+        const cnt = t.bookCount > 1 ? ` (${t.bookCount})` : '';
+        const label = t.title || t.name || '(без названия)';
+        rows.push([{ text: `📖 ${label}${cnt}`, callback_data: `title:${t.id}` }]);
+    }
+    rows.push(navRow(page, totalPages, showPrev, showNext));
+    rows.push([{ text: '◀️ Меню', callback_data: 'menu:main' }]);
+    return { inline_keyboard: rows };
+}
+
+
+// authorId = 0 — «Без серии» не показываем (поиск серий по названию)
+function seriesKeyboard(found, authorId, page, totalPages, showPrev, showNext, opts = {}) {
+    const rows = [];
+    if (authorId && opts.noSeriesCount > 0) {
+        const label = `📚 Без серии (${opts.noSeriesCount})`;
+        rows.push([{ text: label, callback_data: `noseries:${authorId}` }]);
+    }
+    for (const s of found) {
+        if (!s.id || !s.bookCount) continue;
+        const name = s.series || s.name;
+        // по автору (seriesCounts) — если задано, иначе — bookCount серии (все авторы)
+        const cnt = (opts.seriesCounts && opts.seriesCounts.get(name)) || s.bookCount;
+        rows.push([{ text: `📚 ${name} (${cnt})`, callback_data: `series:${s.id}` }]);
+    }
+    rows.push(navRow(page, totalPages, showPrev, showNext));
+    rows.push([{ text: '◀️ Меню', callback_data: 'menu:main' }]);
+    return { inline_keyboard: rows };
+}
+
+function booksKeyboard(found, page, totalPages, showPrev, showNext, backCallback) {
+    const { bookLabel } = require('./formatters');
+    const rows = [];
+    for (const b of found) {
+        if (!b._uid) continue;
+        rows.push([{ text: `📖 ${bookLabel(b)}`, callback_data: `book:${b._uid}` }]);
+    }
+    rows.push(navRow(page, totalPages, showPrev, showNext));
+    rows.push([{ text: '◀️ Назад', callback_data: backCallback || 'menu:main' }]);
+    return { inline_keyboard: rows };
+}
+
+function bookKeyboard(book) {
+    const uid = book._uid;
+    const rows = [
+        [{ text: '⬇️ Скачать', callback_data: `dl:${uid}` }],
+    ];
+    if (book.author)
+        rows.push([{ text: '👤 Другие книги автора', callback_data: `cardauthor:${uid}` }]);
+    if (book.series)
+        rows.push([{ text: '📚 Другие книги серии', callback_data: `cardseries:${uid}` }]);
+    rows.push([{ text: '◀️ Назад', callback_data: 'back:search' }]);
+    return { inline_keyboard: rows };
+}
+
+module.exports = {
+    menuKeyboard, searchFieldKeyboard,
+    authorsKeyboard, titlesKeyboard, seriesKeyboard, booksKeyboard, bookKeyboard,
+    navRow,
+};

@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const he = require('he');
+const hooks = require('../hooks');
 
 const WebWorker = require('../WebWorker');//singleton
 const XmlParser = require('../xml/XmlParser');
@@ -121,30 +122,14 @@ class BasePage {
         return result;
     }
 
-    //tolino ходит по записи только через ссылку без rel: дублируем навигационную, subsection остается для остальных
-    addPlainNavLinks(content) {
-        const entries = (Array.isArray(content.entry) ? content.entry : (content.entry ? [content.entry] : []));
+    async makeBody(content, req, overrides = {}) {
+        // page-level мутаторы
+        // Ошибки изолированы внутри runOpdsPageMutators.
+        const id = overrides.id !== undefined ? overrides.id : this.id;
+        const title = overrides.title !== undefined ? overrides.title : this.title;
+        content = await hooks.runOpdsPageMutators(content, {req, page: this, id, title});
 
-        for (const entry of entries) {
-            if (!entry.link)
-                continue;
-
-            const links = (Array.isArray(entry.link) ? entry.link : [entry.link]);
-            const nav = links.find(l => l['*ATTRS'] && l['*ATTRS'].rel === 'subsection');
-
-            if (!nav || links.some(l => l['*ATTRS'] && !l['*ATTRS'].rel))
-                continue;
-
-            const attrs = Object.assign({}, nav['*ATTRS']);
-            delete attrs.rel;
-            entry.link = links.concat([{'*ATTRS': attrs}]);
-        }
-    }
-
-    makeBody(content, req) {
-        this.addPlainNavLinks(content);
-
-        const base = this.makeEntry({id: this.id, title: this.title});
+        const base = this.makeEntry({id, title});
         base['*ATTRS'] = {
             'xmlns': 'http://www.w3.org/2005/Atom',
             'xmlns:dc': 'http://purl.org/dc/terms/',
@@ -155,7 +140,7 @@ class BasePage {
             base.link = this.baseLinks(req);
 
         const xml = new XmlParser();
-        const xmlObject = {};        
+        const xmlObject = {};
         xmlObject[this.rootTag] = Object.assign(base, content);
 
         xml.fromObject(xmlObject);
