@@ -110,6 +110,30 @@ function launchBrowser(spec) {
     });
 }
 
+function resolveTargetUrl(api, config) {
+    const explicitUrl = (config.url || '').trim();
+    const srv = (api.config && api.config.server) || {};
+    const rawHost = String(srv.host || '').trim();
+    const host = (!rawHost || rawHost === '0.0.0.0' || rawHost === '::' || rawHost === '[::]')
+        ? '127.0.0.1'
+        : rawHost;
+    const port = srv.port || '12380';
+
+    let url = explicitUrl || `http://${host}:${port}`;
+
+    // Добавляем root (приоритет у server.root, фолбэк на rootPathStatic)
+    const rootPath = String(srv.root || (api.config && api.config.rootPathStatic) || '').trim();
+    if (rootPath && rootPath !== '/') {
+        const cleanBase = url.replace(/\/+$/, '');
+        const cleanRoot = rootPath.startsWith('/') ? rootPath : `/${rootPath}`;
+        if (!cleanBase.endsWith(cleanRoot)) {
+            url = `${cleanBase}${cleanRoot}`;
+        }
+    }
+
+    return url;
+}
+
 module.exports = {
     async start(api, config) {
         const major = String(api.version).split('.')[0];
@@ -118,7 +142,7 @@ module.exports = {
             return;
         }
 
-        let url = (config.url || 'http://127.0.0.1:12380').trim();
+        const url = resolveTargetUrl(api, config);
         const rootPath = (api.config && api.config.rootPathStatic) || '';
         if (rootPath && rootPath !== '/' && !url.endsWith(rootPath)) {
             const cleanBase = url.replace(/\/+$/, '');

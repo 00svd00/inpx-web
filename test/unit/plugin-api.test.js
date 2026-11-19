@@ -28,11 +28,12 @@ function makeConfig(overrides = {}) {
         libDir: '/lib',
         remoteLib: false,
         accessPassword: 'secret',
-        server: { host: '0.0.0.0', port: '12380' },
-        opds: { enabled: true, user: 'u', password: 'p' },
+        server: { host: '0.0.0.0', port: '12380', root: '' },
+        opds: { enabled: true, user: 'u', password: 'p', root: '/opds' },
         external: { 'ext-fb2': { cmd: 'x', active: true } },
     }, overrides);
 }
+
 
 function makeLogger() {
     const calls = [];
@@ -83,17 +84,19 @@ describe('PluginApi: safeConfig', () => {
         const c = safeConfig(makeConfig());
         assert.strictEqual(c.accessPassword, undefined);
         assert.strictEqual(c.remoteLib, undefined);
-        assert.strictEqual(c.server, undefined);
-        assert.strictEqual(c.opds, undefined);
         assert.strictEqual(c.external, undefined);
+        assert.strictEqual(c.opds.user, undefined);
+        assert.strictEqual(c.opds.password, undefined);
     });
 
-    test('содержит безопасные поля', () => {
+     test('содержит безопасные поля, включая server и opds (без кредов)', () => {
         const c = safeConfig(makeConfig());
         assert.strictEqual(c.name, 'inpx-web');
         assert.strictEqual(c.version, '1.6.4');
         assert.strictEqual(c.dbVersion, '14');
         assert.strictEqual(c.reviewsEnabled, true);
+        assert.deepStrictEqual(c.server, { host: '0.0.0.0', port: '12380', root: '' });
+        assert.deepStrictEqual(c.opds, { enabled: true, root: '/opds' });
     });
 
     test('libDir только при !remoteLib', () => {
@@ -105,7 +108,11 @@ describe('PluginApi: safeConfig', () => {
         const config = makeConfig();
         const c = safeConfig(config);
         c.favorites.enabled = false;
+        c.server.port = '9999';
+        c.opds.enabled = false;
         assert.strictEqual(config.favorites.enabled, true);
+        assert.strictEqual(config.server.port, '12380');
+        assert.strictEqual(config.opds.enabled, true);
     });
 
     test('api.config — новый объект при каждом обращении', () => {

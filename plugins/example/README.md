@@ -59,7 +59,7 @@ npm run build:plugin -- example
 | Метод / свойство | Что делает и что возвращает |
 |---|---|
 | `api.version` | Версия контракта (`'1.0'`). |
-| `api.config` | Копия конфига ядра без секретов (`accessPassword`, `remoteLib`, `server`, `opds`, `external` вырезаны). |
+| `api.config` | Копия конфига ядра без секретов (секции `server` и `opds` без `user`/`password` доступны; `accessPassword`, `remoteLib` и `external` вырезаны). |
 | `api.dataDir` / `api.pluginsDir` | Пути к каталогу данных и папке плагинов. |
 | `api.log(msg)` / `api.log(LM_WARN, msg)` / `api.log(LM_ERR, msg)` | Пишет сообщения в общий лог сервера. |
 | `api.guard(name, fn)` | Оборачивает асинхронный обработчик, чтобы необработанные исключения аккуратно попадали в лог. |

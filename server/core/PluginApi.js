@@ -21,12 +21,16 @@ function safeConfig(config) {
     const result = _.cloneDeep(_.pick(config, [
         'name', 'version', 'branch', 'dbVersion', 'bookReadLink', 'rootPathStatic',
         'reviewsEnabled', 'authorsBioEnabled', 'opdsBookAddonsInCard', 'extendedSearch',
-        'favorites', 'uiDefaults',
+        'favorites', 'uiDefaults', 'server',
     ]));
+    if (config.opds) {
+        result.opds = _.pick(config.opds, ['enabled', 'root']);
+    }
     if (!config.remoteLib && config.libDir)
         result.libDir = config.libDir;
     return result;
 }
+
 
 class PluginApi {
     constructor({ config, webWorker, pluginId, logger }) {
