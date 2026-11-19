@@ -4,28 +4,37 @@
 есть навигационная ссылка (`rel="subsection"`), добавляется её дубль без `rel`.
 Tolino ходит по записи только через ссылку без `rel`, остальные читалки
 продолжают использовать `rel="subsection"`.
-Плагин идемпотентен: если plain-ссылка уже есть (встроенный мутатор отработал), 
-ничего не меняет — можно ставить без конфликта;
 
-## Требования
+## Установка и запуск
 
-- inpx-web `1.6.5+` (нужен `api.registerOpdsPageMutator`);
-- Node.js 22+.
+1. Распаковать архив с плагином в каталог плагинов `<dataDir>/plugins/`:
+   ```bash
+   unzip dist/plugins/opds-tolino.zip -d <dataDir>/plugins/
+   ```
 
-Zero-dependency.
+2. Создать рабочий конфиг из шаблона:
+   ```bash
+   cp <dataDir>/plugins/opds-tolino/config.example.json <dataDir>/plugins/opds-tolino/config.json
+   ```
 
-## Установка
+3. В `config.json` плагина включить его:
+   ```json
+   {
+       "enabled": true
+   }
+   ```
 
-```bash
-unzip dist/plugins/opds-tolino.zip -d <dataDir>/plugins/
-cp <dataDir>/plugins/opds-tolino/config.example.json <dataDir>/plugins/opds-tolino/config.json
-# в config.json: "enabled": true
-```
+4. В основном конфиге ядра (`<dataDir>/config.json`) разрешить загрузку плагинов:
+   ```json
+   "pluginsEnabled": true
+   ```
 
-В конфиге ядра: `"pluginsEnabled": true`.
+5. Перезапустить сервер.
 
 ## Сборка
+
+Из корня репозитория:
 ```bash
 npm run build:plugin -- opds-tolino
 ```
-→ dist/plugins/opds-tolino.zip.
+Готовый архив появится по пути `dist/plugins/opds-tolino.zip`.

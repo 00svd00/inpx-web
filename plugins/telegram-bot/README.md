@@ -3,65 +3,64 @@
 Плагин для inpx-web: поиск книг в библиотеке и отправка файлов книг прямо в чат Telegram.
 Работает через Telegram-бота (Bot API). Предоставляет в чате минимальный (OPDS-like) способ поиска и скачивания книг
 
-## Установка
+## Установка и запуск
 
-1. Распаковать ZIP плагина в каталог плагинов inpx-web:
-`unzip telegram-bot.zip -d <dataDir>/plugins/`
+1. Распаковать архив с плагином в каталог плагинов `<dataDir>/plugins/`:
+   ```bash
+   unzip telegram-bot.zip -d <dataDir>/plugins/
+   ```
 
-2. Создать `config.json` из шаблона:
-`cp <dataDir>/plugins/telegram-bot/config.example.json <dataDir>/plugins/telegram-bot/config.json`
+2. Создать рабочий конфиг из шаблона:
+   ```bash
+   cp <dataDir>/plugins/telegram-bot/config.example.json <dataDir>/plugins/telegram-bot/config.json
+   ```
 
-3. В `config.json`  задать `"enabled": true`, если нужна парольная аутентификация - задать пароль в `accessPassword`, если не нужна - просто заполнить в `allowedUsers` логины доверенных пользователей
-```json
-{
-    "enabled": true,
-    "token": "<токен от @BotFather>",
-    "accessPassword": "<пароль>",
-    "allowedUsers": ["trusted_user1","trusted_user2",123456789],
-    "sessionTtlMinutes": 5,
-    "cleanIntervalMinutes": 5,
-    "maxResults": 10
-}
-```
-4. В основном конфиге inpx-web (<dataDir>/config.json) установить:
-```"pluginsEnabled": true```
+3. В `config.json` плагина включить его, указать токен от `@BotFather` и настроить доступ (задать `accessPassword` для входа по паролю и/или перечислить доверенных пользователей в `allowedUsers`):
+   ```json
+   {
+       "enabled": true,
+       "token": "<токен от @BotFather>",
+       "accessPassword": "<пароль>",
+       "allowedUsers": ["trusted_user1", "trusted_user2", 123456789],
+       "sessionTtlMinutes": 5,
+       "cleanIntervalMinutes": 5,
+       "maxResults": 10,
+       "readyTimeoutMs": 90000
+   }
+   ```
 
-5. Перезапусть inpx-web. В логе должно появиться:
-```text
-Plugins: telegram-bot: started (api 1.0, ...)
-Plugins: loaded 1 of 1
-```
+4. В основном конфиге ядра (`<dataDir>/config.json`) разрешить загрузку плагинов:
+   ```json
+   "pluginsEnabled": true
+   ```
 
+5. Перезапустить сервер. В логе должны появиться записи:
+   ```text
+   Plugins: telegram-bot: started (api 1.0, ...)
+   Plugins: loaded 1 of 1
+   ```
 
-## Настройки
+## Настройки (`config.json`)
 
-`config.json` плагина (в `<dataDir>/plugins/telegram-bot/`):
-Поле|Обязательно|Описание
--|-|-
-`enabled`|да|`true` — плагин запущен; `false` — выключен.
-`token`|да|Токен бота от @BotFather.
-`accessPassword`|нет|Пароль для доступа к боту.
-`allowedUsers`|нет|Список username (без `@`) или chatId, которым разрешён доступ без пароля.
-`sessionTtlMinutes`|нет|Время жизни сессии в минутах(по умолчанию 5)
-`cleanIntervalMinutes`|нет|Интервал очистки истёкших сессий
-`maxResults`|нет|Сколько элементов на страницу (1–90, по умолчанию 10).
+| Поле | Обязательно | Описание |
+|---|---|---|
+| `enabled` | да | `true` — плагин активен; `false` — выключен. |
+| `token` | да | Токен бота от `@BotFather`. |
+| `accessPassword` | нет* | Пароль для авторизации в боте. |
+| `allowedUsers` | нет* | Список `username` (без `@`) или числовых `chatId`, которым доступ открыт без пароля. |
+| `sessionTtlMinutes` | нет | Время жизни пользовательской сессии при неактивности, в минутах. По умолчанию `5`. |
+| `cleanIntervalMinutes` | нет | Интервал очистки устаревших сессий, в минутах. По умолчанию `5`. |
+| `maxResults` | нет | Количество элементов на одной странице выдачи (`1–90`). По умолчанию `10`. |
+| `readyTimeoutMs` | нет | Максимальное время ожидания загрузки базы, в миллисекундах. По умолчанию `90000`. |
 
-Либо `accessPassword` либо `allowedUsers` должны быть заданы.
+*\* Обязательно заполнить хотя бы одно из этих полей (`accessPassword` или `allowedUsers`) — без ограничений доступа бот откажется запускаться.*
 
 
 ## Авторизация
 
-### Режим `allowedUsers` (без пароля)
-
-Доступ имеют только пользователи из `allowedUsers` (массив username (без `@`) и/или chatId)
-
-
-### Режим `accessPassword` (с паролем)
-
-Пользователь отправляет `/start <пароль>` (или просто пароль после запроса бота). Если пароль верный - `chatId` сохраняется в `<dataDir>/plugins/telegram-bot/authorizedUsers.json` (после чего пользователь становится авторизованным)
-После 4 или более неудачных попыток авторизации — блокировка до истечения сессии, по умолчанию 5-10 минут без активности в чате (`sessionTtlMinutes` + `cleanIntervalMinutes`).
-
-`allowedUsers` — приоритет (доступ без пароля). Остальные — по паролю (`accessPassword`).
+* **Без пароля (`allowedUsers`):** проверяется в первую очередь. Пользователи из списка попадают в меню сразу.
+* **По паролю (`accessPassword`):** для входа достаточно отправить `/start <пароль>` или просто ввести пароль после подсказки бота. После успешного входа `chatId` сохраняется в `<dataDir>/plugins/telegram-bot/authorizedUsers.json`, и повторно вводить пароль не потребуется.
+* **Защита от перебора:** после 4 неудачных попыток ввода пароля чат временно блокируется до истечения сессии (по умолчанию 5–10 минут без новых сообщений: `sessionTtlMinutes` + `cleanIntervalMinutes`).
 
 ## Особенности работы
 Время жизни сессии 5-10 минут(5 минут + проверки раз в 5 минут) неактивности. Если после истечения сессии пользователь вернётся к старому поиску - получит предупреждение, что автор/серия/книга устарели - начните поиск заново.
@@ -69,8 +68,11 @@ Plugins: loaded 1 of 1
 Плагин поддерживает поисковые префиксы аналогично базовому inpx-web (подробности в `/help` бота)
 
 ## Сборка
-В корне проекта
-`npm run build:plugin -- telegram-bot`
-zip архив с плагином будет по пути `dist/plugins/telegram-bot.zip`
-Для чистой сборки (с принудительным скачиванием всех зависимостей последних доступных версий)
-`npm run build:plugin -- telegram-bot --clean`
+
+Из корня репозитория:
+```bash
+npm run build:plugin -- telegram-bot
+```
+Готовый архив появится по пути `dist/plugins/telegram-bot.zip`. Для полной пересборки со свежими зависимостями:
+```bash
+npm run build:plugin -- telegram-bot --clean

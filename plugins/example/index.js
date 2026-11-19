@@ -30,7 +30,7 @@ module.exports = {
             api.registerRoute('/hello', helloHandler(config), {method: 'GET'});
             api.registerRoute('/api/info', infoHandler(api), {method: 'GET'});
             api.registerRoute('/book', bookPageHandler(api), {method: 'GET'});
-            api.registerRoute('/download', downloadHandler(api, config), {method: 'GET'});
+            api.registerRoute('/download', downloadHandler(api), {method: 'GET'});
             api.log(`[${NAME}] routes registered: /plugin/${NAME}/hello, /plugin/${NAME}/api/info`);
         } else {
             api.log(LM_WARN, `[${NAME}] api.registerRoute not available (need core 1.6.5+), skip`);

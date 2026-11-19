@@ -40,8 +40,12 @@ class TelegramBotPlugin {
             return;
         }
 
+        const readyTimeoutMs = Number.isFinite(config.readyTimeoutMs)
+            ? Math.max(0, config.readyTimeoutMs)
+            : 90000;
+
         try {
-            await api.waitReady({ timeoutMs: 60000 });
+            await api.waitReady({ timeoutMs: readyTimeoutMs });
         } catch (e) {
             api.log(LM_ERR, `[telegram-bot] waitReady failed: ${e.message}`);
             return;

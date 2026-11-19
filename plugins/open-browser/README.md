@@ -1,38 +1,47 @@
 # inpx-web plugin: open-browser
 
-Открывает веб-интерфейс `inpx-web` в новом окне браузера при запуске сервера.
+Автоматически открывает веб-интерфейс `inpx-web` в новом окне браузера после запуска сервера и загрузки поисковой базы.
 
-## Установка
+## Установка и запуск
 
-1. Распаковать ZIP плагина в каталог плагинов inpx-web:
-`unzip open-browser.zip -d <dataDir>/plugins/`
+1. Распаковать архив с плагином в каталог плагинов `<dataDir>/plugins/`:
+   ```bash
+   unzip open-browser.zip -d <dataDir>/plugins/
+   ```
 
-2. Создать `config.json` из шаблона:
-`cp <dataDir>/plugins/open-browser/config.example.json <dataDir>/plugins/open-browser/config.json`
+2. Создать рабочий конфиг из шаблона:
+   ```bash
+   cp <dataDir>/plugins/open-browser/config.example.json <dataDir>/plugins/open-browser/config.json
+   ```
 
-3. В `config.json` задать `"enabled": true`, при необходимости прописать `browserPath`
+3. В `config.json` плагина включить его (и при необходимости указать путь к нужному браузеру в `browserPath`):
+   ```json
+   "enabled": true
+   ```
 
-4. В основном конфиге inpx-web (<dataDir>/config.json) установить: `"pluginsEnabled": true`
+4. В основном конфиге ядра (`<dataDir>/config.json`) разрешить загрузку плагинов:
+   ```json
+   "pluginsEnabled": true
+   ```
 
-5. Перезапусть inpx-web. В логе должно появиться:
-```text
-Plugins: open-browser: started (api 1.0, ...)
-Plugins: loaded 1 of 1
-```
+5. Перезапустить сервер. В логе должны появиться записи:
+   ```text
+   Plugins: open-browser: started (api 1.0, ...)
+   Plugins: loaded 1 of 1
+   ```
 
-## Настройки
+## Настройки (`config.json`)
 
-Поле|Обязательно|Описание
--|-|-
-`enabled`|да|`true` — плагин запущен; `false` — выключен.
-`url`|да|url, который откроется в браузере, по умолчанию `http://127.0.0.1:12380`
-`browserPath`|нет|Путь к исполняемому файлу браузера. Если не задан - плагин пытается стартовать браузер по умолчанию
-`browserArgs`|нет|Дополнительные аргументы, передаваемые браузеру (по умолчанию передаются параметры для открытия в новом окне)
-`delayMs`|нет|Дополнительная задержка перед запуском браузера. По умолчанию `300`мс
-`readyTimeoutMs`|нет|Таймаут ожидания загрузки поисковой базы. По умолчанию `90000`мс
+| Поле | Обязательно | Описание |
+|---|---|---|
+| `enabled` | да | `true` — плагин активен; `false` — выключен. |
+| `url` | нет | Адрес, который откроется в браузере. По умолчанию `http://127.0.0.1:12380`. |
+| `browserPath` | нет | Путь к исполняемому файлу или приложению браузера. Если оставить пустым, используется системный браузер по умолчанию. |
+| `browserArgs` | нет | Дополнительные аргументы запуска браузера (флаг нового окна добавляется автоматически). |
+| `delayMs` | нет | Задержка перед открытием браузера после готовности базы, в миллисекундах. По умолчанию `300`. |
+| `readyTimeoutMs` | нет | Максимальное время ожидания загрузки базы, в миллисекундах. По умолчанию `90000`. |
 
-
-## Примеры `browserPath` для разных ОС
+### Примеры `browserPath` для разных ОС
 
 * **Windows:**
   * Chrome: `"C:/Program Files/Google/Chrome/Application/chrome.exe"`
@@ -45,10 +54,13 @@ Plugins: loaded 1 of 1
   * Chrome: `"/usr/bin/google-chrome"`
   * Firefox: `"/usr/bin/firefox"`
 
-
 ## Сборка
-В корне проекта
-`npm run build:plugin -- open-browser`
-zip архив с плагином будет по пути `dist/plugins/open-browser.zip`
-Для чистой сборки (с принудительным скачиванием всех зависимостей последних доступных версий)
-`npm run build:plugin -- open-browser --clean`
+
+Из корня репозитория:
+```bash
+npm run build:plugin -- open-browser
+```
+Готовый архив появится по пути `dist/plugins/open-browser.zip`. Для полной пересборки со свежими зависимостями:
+```bash
+npm run build:plugin -- open-browser --clean
+```

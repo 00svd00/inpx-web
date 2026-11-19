@@ -10,104 +10,71 @@ function make(opts = {}) {
     return {page, webWorker};
 }
 
-test('hasAddons: reviewsEnabled + declaredCount > 0 → true', async () => {
-    const {page, webWorker} = make({
-        config: {reviewsEnabled: true, authorsBioEnabled: false},
-        ww: {getBookReviewsCount: () => ({declaredCount: 3, sum: 15})},
-    });
-    assert.strictEqual(await page.hasAddons('uid'), true);
-    assert.strictEqual(webWorker.calls.getBookReviewsCount, 1);
-    assert.strictEqual(webWorker.calls.getBookAuthors, 0);
-});
-
-test('hasAddons: reviewsEnabled + declaredCount 0, authorsBioEnabled false → false', async () => {
-    const {page} = make({
-        config: {reviewsEnabled: true, authorsBioEnabled: false},
-        ww: {getBookReviewsCount: () => ({declaredCount: 0, sum: 0})},
-    });
-    assert.strictEqual(await page.hasAddons('uid'), false);
-});
-
-test('hasAddons: authorsBioEnabled + found → true', async () => {
-    const {page} = make({
-        config: {reviewsEnabled: false, authorsBioEnabled: true},
-        ww: {getBookAuthors: () => [{name: 'A', hash: 'h', found: true}]},
-    });
-    assert.strictEqual(await page.hasAddons('uid'), true);
-});
-
-test('hasAddons: авторы есть, но found=false → false', async () => {
-    const {page} = make({
-        config: {reviewsEnabled: false, authorsBioEnabled: true},
-        ww: {getBookAuthors: () => [{name: 'A', hash: 'h', found: false}]},
-    });
-    assert.strictEqual(await page.hasAddons('uid'), false);
-});
-
-test('hasAddons: обе фичи выключены → false, webWorker не дёргается', async () => {
-    const {page, webWorker} = make({config: {reviewsEnabled: false, authorsBioEnabled: false}});
-    assert.strictEqual(await page.hasAddons('uid'), false);
-    assert.strictEqual(webWorker.calls.getBookReviewsCount, 0);
-    assert.strictEqual(webWorker.calls.getBookAuthors, 0);
-});
-
-test('hasAddons: пустой bookUid → false', async () => {
-    const {page} = make({config: {reviewsEnabled: true, authorsBioEnabled: true}});
-    assert.strictEqual(await page.hasAddons(''), false);
-    assert.strictEqual(await page.hasAddons(null), false);
-});
-
-test('hasAddons: getBookReviewsCount бросает → authorsBio проверяется', async () => {
+test('body: карточка + nav + addons как entries', async () => {
     const {page} = make({
         config: {reviewsEnabled: true, authorsBioEnabled: true},
         ww: {
-            getBookReviewsCount: () => { throw new Error('reviews_disabled'); },
-            getBookAuthors: () => [{name: 'A', hash: 'h', found: true}],
-        },
-    });
-    assert.strictEqual(await page.hasAddons('uid'), true);
-});
-
-test('body: навигация после карточки, до рецензий', async () => {
-    const {page} = make({
-        config: {reviewsEnabled: true, authorsBioEnabled: false},
-        ww: {
-            getBookInfo: () => ({
-                bookInfo: {
-                    book: {title: 'T', author: 'A', series: 'S', serno: 1, ext: 'fb2'},
-                    link: '/book/hash', cover: '',
-                    bookInfo: {titleInfo: {author: ['A'], bookTitle: 'T'}},
-                },
+            getBookRecord: () => ({
+                _uid: 'u', title: 'T', author: 'A', series: 'S', serno: 1, ext: 'fb2',
             }),
             getBookReviewsCount: () => ({declaredCount: 2, sum: 8}),
+            getBookAuthors: () => [{name: 'A', hash: 'h1', found: true}],
         },
     });
     const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/addons?uid=u'});
 
     const iCard = xml.indexOf('book-u');
-    const iNavAuthor = xml.indexOf('/opds/author?author=');
-    const iNavSeries = xml.indexOf('/opds/series?series=');
-    const iRev = xml.indexOf('Рецензии');
+    const iNavAuthor = xml.indexOf('author-books-u');
+    const iNavSeries = xml.indexOf('series-books-u');
+    const iRev = xml.indexOf('reviews-u');
+    const iAuthors = xml.indexOf('authors-u');
 
-    assert.ok(iCard >= 0 && iNavAuthor > iCard, 'карточка раньше навигации');
-    assert.ok(iNavAuthor < iNavSeries, 'автор раньше серии');
-    assert.ok(iNavSeries < iRev, 'навигация раньше рецензий');
+    assert.ok(iCard >= 0, 'карточка');
+    assert.ok(iNavAuthor > iCard, 'автор после карточки');
+    assert.ok(iNavSeries > iNavAuthor, 'серия после автора');
+    assert.ok(iRev > iNavSeries, 'рецензии после навигации');
+    assert.ok(iAuthors > iRev, 'авторы после рецензий');
 });
 
-test('body: без автора/серии — нет навигационных entries', async () => {
+test('body: ядровые nav/addons — rel=subsection в каталоге', async () => {
+    const {page} = make({
+        config: {reviewsEnabled: true, authorsBioEnabled: false},
+        ww: {
+            getBookRecord: () => ({_uid: 'u', title: 'T', author: 'A', series: 'S', ext: 'fb2'}),
+            getBookReviewsCount: () => ({declaredCount: 2, sum: 8}),
+        },
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/addons?uid=u'});
+
+    // все ссылки в каталоге — subsection
+    assert.ok(xml.includes('rel="subsection"'));
+    assert.ok(!xml.includes('rel="related"'));
+});
+
+test('body: без автора/серии — только карточка', async () => {
     const {page} = make({
         config: {reviewsEnabled: false, authorsBioEnabled: false},
         ww: {
-            getBookInfo: () => ({
-                bookInfo: {
-                    book: {title: 'T', author: '', series: '', serno: 0, ext: 'fb2'},
-                    link: '/book/hash', cover: '',
-                    bookInfo: null,
-                },
-            }),
+            getBookRecord: () => ({_uid: 'u', title: 'T', author: '', series: '', ext: 'fb2'}),
         },
     });
     const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/addons?uid=u'});
     assert.ok(!xml.includes('author-books-'));
     assert.ok(!xml.includes('series-books-'));
+});
+
+test('body: без uid — entry [Не указан идентификатор]', async () => {
+    const {page} = make({config: {}});
+    const xml = await page.body({query: {}, originalUrl: '/opds/book/addons'});
+    assert.ok(xml.includes('no-uid'));
+    assert.ok(xml.includes('Не указан идентификатор'));
+});
+
+test('body: книга не найдена — entry [Книга не найдена]', async () => {
+    const {page} = make({
+        config: {},
+        ww: {getBookRecord: () => null},
+    });
+    const xml = await page.body({query: {uid: 'u'}, originalUrl: '/opds/book/addons?uid=u'});
+    assert.ok(xml.includes('[Книга не найдена]'));
 });

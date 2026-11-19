@@ -3,7 +3,9 @@ const assert = require('node:assert');
 const path = require('path');
 const {
     isAvailable, resolveExternal, parseExternalKey, resolveExternalByFileType, normExt,
+    getOpdsExternalLinks,
 } = require('../../server/core/externalTools');
+
 
 const config = {
     externalToolsConfig: '/data/external_tools.json',
@@ -69,4 +71,46 @@ test('resolveExternal: BOOKEXT/EXTDIR/RESULTFILE/FILENAME/cmdLine', () => {
 test('resolveExternal: null если не активен/не разрешён', () => {
     assert.strictEqual(resolveExternal(config, 'off', {bookExt: 'fb2', bookFile: '/b/h'}), null);
     assert.strictEqual(resolveExternal(config, 'fbz', {bookExt: 'fb2', bookFile: '/b/h'}), null);
+});
+
+// --- getOpdsExternalLinks ---
+
+test('getOpdsExternalLinks: только type=download, rel=acquisition', () => {
+    const bookInfo = {book: {ext: 'epub'}, link: '/book/hash'};
+    const links = getOpdsExternalLinks(config, bookInfo);
+
+    // pdf (download, onlyExt нет) + fbz (download, onlyExt epub/docx → epub проходит)
+    assert.strictEqual(links.length, 2);
+    for (const l of links) {
+        assert.strictEqual(l.rel, 'http://opds-spec.org/acquisition');
+        assert.ok(l.href.startsWith('/book/hash/ext-'));
+        assert.ok(l.type.startsWith('application/'));
+    }
+    const keys = links.map(l => l.href.split('ext-')[1]).sort();
+    assert.deepStrictEqual(keys, ['fbz', 'pdf']);
+});
+
+test('getOpdsExternalLinks: gui/off не попадают', () => {
+    const bookInfo = {book: {ext: 'fb2'}, link: '/book/hash'};
+    const links = getOpdsExternalLinks(config, bookInfo);
+    const hrefs = links.map(l => l.href);
+    assert.ok(!hrefs.some(h => h.includes('ext-gui')));
+    assert.ok(!hrefs.some(h => h.includes('ext-off')));
+});
+
+test('getOpdsExternalLinks: externalToolsEnabled: false → []', () => {
+    const bookInfo = {book: {ext: 'fb2'}, link: '/book/hash'};
+    const cfg = Object.assign({}, config, {externalToolsEnabled: false});
+    assert.deepStrictEqual(getOpdsExternalLinks(cfg, bookInfo), []);
+});
+
+test('getOpdsExternalLinks: bookInfo: null → []', () => {
+    assert.deepStrictEqual(getOpdsExternalLinks(config, null), []);
+    assert.deepStrictEqual(getOpdsExternalLinks(config, {}), []);
+    assert.deepStrictEqual(getOpdsExternalLinks(config, {book: null}), []);
+});
+
+test('getOpdsExternalLinks: только base acquisition без external (config.external пуст)', () => {
+    const cfg = {external: null};
+    assert.deepStrictEqual(getOpdsExternalLinks(cfg, {book: {ext: 'fb2'}, link: '/b/h'}), []);
 });

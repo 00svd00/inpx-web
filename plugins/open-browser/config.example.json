@@ -4,5 +4,5 @@
     "browserPath": "",
     "browserArgs": [],
     "delayMs": 300,
-    "readyTimeoutMs": 300000
+    "readyTimeoutMs": 90000
 }

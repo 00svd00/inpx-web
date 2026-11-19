@@ -3,11 +3,12 @@ const path = require('path');
 const { execSync } = require('child_process');
 const yazl = require('yazl');
 
-// npm run build:plugin -- <id>      — один плагин
-// npm run release:plugins           — все plugins/*/
+// npm run build:plugin -- <id>      — один плагин -> dist/plugins/<id>.zip
+// npm run build:plugin              — все plugins/*/ -> общий dist/plugins/plugins.zip
 //
 // ZIP: верхний уровень — каталог <id>/ (например, example/index.js),
 // поэтому установка: unzip dist/plugins/<id>.zip -d <dataDir>/plugins/
+// или для всех сразу: unzip dist/plugins/plugins.zip -d <dataDir>/plugins/
 //
 // node_modules плагина ПОПАДАЕТ в ZIP (самодостаточный, без npm install у пользователя).
 // Исключаются: config.json (секреты), package-lock.json, .git, .gitignore, node_modules/.cache.
@@ -44,7 +45,8 @@ async function collectFiles(dir, base = '', out = [], inNodeModules = false) {
     return out;
 }
 
-async function buildPlugin(id, opts = {}) {
+// Подготовка зависимостей и сбор списка файлов одного плагина
+async function preparePlugin(id, opts = {}) {
     const pluginDir = path.join(pluginsDir, id);
 
     if (!await fs.pathExists(pluginDir))
@@ -69,7 +71,6 @@ async function buildPlugin(id, opts = {}) {
         }
     }
 
-
     const pkgFile = path.join(pluginDir, 'package.json');
     if (await fs.pathExists(pkgFile)) {
         const pkg = JSON.parse(await fs.readFile(pkgFile, 'utf8'));
@@ -89,18 +90,29 @@ async function buildPlugin(id, opts = {}) {
         }
     }
 
-    await fs.ensureDir(distDir);
-    const zipFile = path.join(distDir, `${id}.zip`);
-    await fs.remove(zipFile);
-
     const files = await collectFiles(pluginDir);
     if (!files.length)
         throw new Error(`no files to pack: ${pluginDir}`);
 
+    return files;
+}
+
+// Упаковка набора плагинов [{ id, files }] в указанный zip-файл
+async function packPluginsToZip(zipName, entries) {
+    await fs.ensureDir(distDir);
+    const zipFile = path.join(distDir, zipName);
+    await fs.remove(zipFile);
+
+    let totalFiles = 0;
+
     await new Promise((resolve, reject) => {
         const zip = new yazl.ZipFile();
-        for (const f of files)
-            zip.addFile(f.abs, `${id}/${f.rel}`);
+        for (const { id, files } of entries) {
+            for (const f of files) {
+                zip.addFile(f.abs, `${id}/${f.rel}`);
+                totalFiles++;
+            }
+        }
         zip.outputStream
             .pipe(fs.createWriteStream(zipFile))
             .on('error', reject)
@@ -109,9 +121,13 @@ async function buildPlugin(id, opts = {}) {
     });
 
     const stat = await fs.stat(zipFile);
-    console.log(`✅ ${id}.zip (${files.length} files, ${(stat.size / 1024 / 1024).toFixed(2)} MB) -> ${path.relative(repoDir, zipFile)}`);
-    console.log(`   install: unzip ${path.relative(repoDir, zipFile)} -d <dataDir>/plugins/`);
-    console.log(`   then: cp <dataDir>/plugins/${id}/config.example.json <dataDir>/plugins/${id}/config.json && edit config.json (enabled: true)`);
+    const relZip = path.relative(repoDir, zipFile);
+    console.log(`✅ ${zipName} (${entries.length} plugin(s), ${totalFiles} files, ${(stat.size / 1024 / 1024).toFixed(2)} MB) -> ${relZip}`);
+    console.log(`   install: unzip ${relZip} -d <dataDir>/plugins/`);
+    if (entries.length === 1) {
+        const id = entries[0].id;
+        console.log(`   then: cp <dataDir>/plugins/${id}/config.example.json <dataDir>/plugins/${id}/config.json && edit config.json (enabled: true)`);
+    }
 }
 
 async function main() {
@@ -123,11 +139,14 @@ async function main() {
         forceInstall: flags.includes('--force-install'),
     };
 
+    // Сборка одного плагина в <id>.zip
     if (id) {
-        await buildPlugin(id, opts);
+        const files = await preparePlugin(id, opts);
+        await packPluginsToZip(`${id}.zip`, [{ id, files }]);
         return;
     }
 
+    // Сборка всех плагинов в общий plugins.zip
     if (!await fs.pathExists(pluginsDir))
         throw new Error(`plugins dir not found: ${pluginsDir}`);
 
@@ -141,8 +160,13 @@ async function main() {
         return;
     }
 
-    for (const name of names)
-        await buildPlugin(name, opts);
+    const entries = [];
+    for (const name of names) {
+        const files = await preparePlugin(name, opts);
+        entries.push({ id: name, files });
+    }
+
+    await packPluginsToZip('plugins.zip', entries);
 }
 
 main().catch(e => {
